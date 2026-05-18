@@ -1,0 +1,2659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Accountants – Accounts Email Generator</title>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.min.js" onerror="loadDocxFallback()"></script>
+<script>
+function loadDocxFallback() {
+  console.warn('[Pulse] unpkg.com failed, falling back to jsDelivr for docx');
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js';
+  s.onerror = function() {
+    console.warn('[Pulse] jsDelivr also failed, trying cdnjs');
+    const s2 = document.createElement('script');
+    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.umd.min.js';
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s);
+}
+// After page load, check if docx loaded; if not, fall back manually
+window.addEventListener('load', function() {
+  if (!window.docx) {
+    console.warn('[Pulse] docx not loaded after page load, attempting fallback');
+    loadDocxFallback();
+  }
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f3f5f8;
+    color: #1f2937;
+  }
+  header {
+    background: #0b3b5c;
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header .tag { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+  header .actions { display: flex; gap: 8px; }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  button.primary { background: #0ea5e9; color: white; }
+  button.primary:hover { background: #0284c7; }
+  button.secondary { background: #fff; color: #0b3b5c; border: 1px solid #cbd5e1; }
+  button.secondary:hover { background: #f1f5f9; }
+  button.ghost { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+  button.ghost:hover { background: rgba(255,255,255,0.1); }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    height: calc(100vh - 60px);
+  }
+  .form-panel, .preview-panel {
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .form-panel {
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+  }
+  .preview-panel { background: #f9fafb; }
+
+  .section {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .section h2 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0b3b5c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: #4b5563;
+    margin-bottom: 4px;
+    margin-top: 8px;
+  }
+  input, textarea, select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 3px rgba(14,165,233,0.15);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; align-items: end; }
+
+  .figures-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .figures-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    padding: 6px 4px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .figures-table th.num { text-align: right; }
+  .figures-table td { padding: 4px; }
+  .figures-table input { padding: 6px 8px; font-size: 13px; }
+  .figures-table input.num { text-align: right; }
+  .figures-table .label-cell { font-size: 13px; color: #374151; padding-left: 0; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .toggle-row input { width: auto; }
+  .toggle-row label { margin: 0; font-size: 13px; font-weight: 500; }
+
+  .preview-paper {
+    background: white;
+    padding: 48px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    min-height: 100%;
+    font-family: Calibri, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #111827;
+  }
+  .preview-paper p { margin: 0 0 12px 0; }
+  .preview-paper h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 18px 0 6px 0;
+    color: #111827;
+  }
+  .preview-paper .subject {
+    font-weight: 700;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 10px;
+    margin-bottom: 18px;
+  }
+  .preview-paper ul { margin: 0 0 12px 0; padding-left: 24px; }
+  .preview-paper ul li { margin-bottom: 4px; }
+  .preview-paper .bullets-block { margin-bottom: 12px; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0284c7;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .toast.show { opacity: 1; }
+
+  .empty-note {
+    font-size: 12px;
+    color: #9ca3af;
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  .help-text {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  .footer-info {
+    font-size: 11px;
+    color: #6b7280;
+    text-align: center;
+    padding: 12px;
+    border-top: 1px solid #e5e7eb;
+    background: #fff;
+  }
+
+
+  /* Extraction results modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: white; border-radius: 8px; padding: 24px; max-width: 560px;
+    width: 90%; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  }
+  .modal h2 { margin: 0 0 12px 0; color: #0b3b5c; font-size: 18px; }
+  .modal .result-section { margin-bottom: 16px; }
+  .modal .result-section h3 { margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .modal .found h3 { color: #16a34a; }
+  .modal .missing h3 { color: #dc2626; }
+  .modal ul { margin: 0; padding-left: 20px; font-size: 13px; }
+  .modal ul li { margin-bottom: 4px; }
+  .modal .actions-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .processing { display: none; align-items: center; gap: 10px; color: white; font-size: 14px; padding: 8px 14px; background: rgba(0,0,0,0.6); border-radius: 6px; }
+  .processing.show { display: flex; }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; height: auto; }
+    .form-panel, .preview-panel { height: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Pulse Accountants – Accounts Email Generator</h1>
+    <div class="tag">Standardised client email tool for staff use</div>
+  </div>
+  <div class="actions">
+    <button class="primary" onclick="uploadPdf()" style="background:#16a34a">📄 Upload Accounts</button>
+    <button class="primary" onclick="uploadTaxComp()" style="background:#ca8a04">📊 Upload Tax Comp</button>
+    <button class="ghost" onclick="resetForm()">Reset</button>
+    <button class="ghost" onclick="saveData()">Save Inputs</button>
+    <button class="ghost" onclick="loadData()">Load Inputs</button>
+    <button class="primary" onclick="openInOutlook()" style="background:#dc2626">&#9993; Open in Outlook</button>
+    <button class="primary" onclick="copyEmail()">Copy Email</button>
+    <button class="primary" onclick="downloadDocx()">Download .docx</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ FORM PANEL ============ -->
+  <section class="form-panel">
+
+    <div class="section">
+      <h2>Client Details</h2>
+      <div class="row">
+        <div>
+          <label>Client First Name</label>
+          <input id="clientName" placeholder="e.g. Kate" oninput="render()">
+        </div>
+        <div>
+          <label>Y/E Date</label>
+          <input id="yeDate" placeholder="e.g. 30 November 2025" oninput="onFigureInput()">
+        </div>
+      </div>
+      <label>Company Name</label>
+      <input id="companyName" placeholder="e.g. Lotus Communications Limited" oninput="onFigureInput()">
+      <div class="row">
+        <div>
+          <label>Current Year</label>
+          <input id="currYear" type="number" placeholder="2025" oninput="onFigureInput()">
+        </div>
+        <div>
+          <label>Prior Year</label>
+          <input id="prevYear" type="number" placeholder="2024" oninput="onFigureInput()">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Business Activity / Trade</label>
+          <input id="bizActivity" placeholder="e.g. marketing consultancy, online retailer" oninput="onFigureInput()">
+          <p class="help-text">Used in trading commentary to make it client-specific.</p>
+        </div>
+        <div>
+          <label>Sector <a href="#" onclick="openSectorManager(event)" style="font-size:11px;font-weight:500;color:#0ea5e9;text-decoration:none;margin-left:6px;">[Manage…]</a></label>
+          <select id="bizSector" onchange="onFigureInput()">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Accounts Framework</h2>
+      <div style="display:flex; gap:16px; margin-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; margin:0; cursor:pointer;">
+          <input type="radio" name="framework" value="frs105" id="frw_frs105" checked onchange="onFrameworkChange()" style="width:auto;">
+          <span style="font-size:13px;">FRS 105 (Micro-entity)</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; margin:0; cursor:pointer;">
+          <input type="radio" name="framework" value="frs102" id="frw_frs102" onchange="onFrameworkChange()" style="width:auto;">
+          <span style="font-size:13px;">FRS 102 (Small Company)</span>
+        </label>
+      </div>
+      <p class="help-text">Auto-detected on PDF upload. Adjust manually if needed.</p>
+    </div>
+
+    <div class="section">
+      <h2>Key Figures (£)</h2>
+      <div class="toggle-row" style="margin-bottom:8px;">
+        <input type="checkbox" id="useDashboard" checked onchange="render()">
+        <label for="useDashboard">Include visual dashboard in email</label>
+      </div>
+      <table class="figures-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="num"><span id="hdrCurr">Current</span></th>
+            <th class="num"><span id="hdrPrev">Prior</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="label-cell">Turnover</td>
+            <td><input class="num" id="curr_turnover" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_turnover" type="number" oninput="onFigureInput()"></td></tr>
+
+          <!-- FRS 105 rows -->
+          <tr class="row-frs105"><td class="label-cell">Staff costs</td>
+            <td><input class="num" id="curr_staff" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_staff" type="number" oninput="onFigureInput()"></td></tr>
+          <tr class="row-frs105"><td class="label-cell">Other charges</td>
+            <td><input class="num" id="curr_other" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_other" type="number" oninput="onFigureInput()"></td></tr>
+
+          <!-- FRS 102 rows -->
+          <tr class="row-frs102" style="display:none"><td class="label-cell">Cost of sales</td>
+            <td><input class="num" id="curr_cos" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_cos" type="number" oninput="onFigureInput()"></td></tr>
+          <tr class="row-frs102" style="display:none"><td class="label-cell">Gross profit</td>
+            <td><input class="num" id="curr_gp" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_gp" type="number" oninput="onFigureInput()"></td></tr>
+          <tr class="row-frs102" style="display:none"><td class="label-cell">Administrative expenses</td>
+            <td><input class="num" id="curr_admin" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_admin" type="number" oninput="onFigureInput()"></td></tr>
+          <tr class="row-frs102" style="display:none"><td class="label-cell">Operating profit</td>
+            <td><input class="num" id="curr_op" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_op" type="number" oninput="onFigureInput()"></td></tr>
+          <tr class="row-frs102" style="display:none"><td class="label-cell">Interest payable</td>
+            <td><input class="num" id="curr_int" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_int" type="number" oninput="onFigureInput()"></td></tr>
+
+          <!-- Common rows -->
+          <tr><td class="label-cell">Profit before taxation</td>
+            <td><input class="num" id="curr_pbt" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_pbt" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Corporation tax</td>
+            <td><input class="num" id="curr_ct" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_ct" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Net profit</td>
+            <td><input class="num" id="curr_np" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_np" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Fixed assets</td>
+            <td><input class="num" id="curr_fa" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_fa" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Current assets</td>
+            <td><input class="num" id="curr_ca" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_ca" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Current liabilities</td>
+            <td><input class="num" id="curr_cl" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_cl" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Long-term liabilities</td>
+            <td><input class="num" id="curr_ltl" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_ltl" type="number" oninput="onFigureInput()"></td></tr>
+          <tr><td class="label-cell">Net assets</td>
+            <td><input class="num" id="curr_na" type="number" oninput="onFigureInput()"></td>
+            <td><input class="num" id="prev_na" type="number" oninput="onFigureInput()"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Narrative – Trading Performance</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="useTrading" checked onchange="render()">
+        <label for="useTrading">Include trading performance commentary</label>
+      </div>
+      <label>Commentary (auto-suggested, edit as required)</label>
+      <textarea id="tradingNarrative" rows="5" oninput="render()" placeholder="Click 'Auto-generate from figures' to draft commentary"></textarea>
+      <button class="secondary" style="margin-top:8px" onclick="autoTradingNarrative()">Auto-generate from figures</button>
+    </div>
+
+    <div class="section">
+      <h2>Narrative – Balance Sheet</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="useBS" checked onchange="render()">
+        <label for="useBS">Include balance sheet commentary</label>
+      </div>
+      <textarea id="bsNarrative" rows="6" oninput="render()" placeholder="e.g. Net assets at the year end stand at £185..."></textarea>
+      <button class="secondary" style="margin-top:8px" onclick="autoBSNarrative()">Auto-generate from figures</button>
+    </div>
+
+    <div class="section">
+      <h2>Director's Loan</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="useDLA" onchange="onUseDLAToggle()">
+        <label for="useDLA">Director's loan applies</label>
+      </div>
+      <div class="row">
+        <div>
+          <label>Overdrawn Balance (£)</label>
+          <input id="dlaBalance" type="number" oninput="onDlaBalanceInput()">
+        </div>
+        <div>
+          <label>Repayment Deadline</label>
+          <input id="dlaDeadline" placeholder="e.g. 31 August 2026" oninput="onDlaFieldChange()">
+        </div>
+      </div>
+      <label>Commentary (optional override)</label>
+      <textarea id="dlaNarrative" rows="5" oninput="render()" placeholder="Click 'Auto-generate from figures' for default wording"></textarea>
+      <button class="secondary" style="margin-top:8px" onclick="autoDLANarrative()">Auto-generate from figures</button>
+    </div>
+
+    <div class="section">
+      <h2>Dividends</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="useDiv" onchange="onUseDivToggle()">
+        <label for="useDiv">Dividends declared during the year</label>
+      </div>
+      <div class="row">
+        <div>
+          <label>Current Year Dividends (£)</label>
+          <input id="curr_div" type="number" oninput="render()">
+        </div>
+        <div>
+          <label>Prior Year Dividends (£)</label>
+          <input id="prev_div" type="number" oninput="render()">
+        </div>
+      </div>
+      <label>Commentary (optional override)</label>
+      <textarea id="divNarrative" rows="3" oninput="render()" placeholder="Leave blank for default wording"></textarea>
+      <button class="secondary" style="margin-top:8px" onclick="autoDivNarrative()">Auto-generate from figures</button>
+    </div>
+
+    <div class="section">
+      <h2>Corporation Tax</h2>
+      <div class="row">
+        <div>
+          <label>CT Payment Deadline</label>
+          <input id="ctPayDate" placeholder="e.g. 1 September 2026" oninput="render()">
+        </div>
+        <div>
+          <label>Taxable Profits (£)</label>
+          <input id="taxableProfits" type="number" placeholder="Per CT computation" oninput="onFigureInput()">
+        </div>
+      </div>
+      <label>CT Rate (%)</label>
+      <input id="ctRate" type="number" value="19" oninput="onFigureInput()">
+      <p class="help-text">Taxable profits is the figure from the CT computation (often differs from accounting profit due to add-backs and allowances).</p>
+
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label>Capital Allowances in Year (£)</label>
+          <input id="capAllow" type="number" placeholder="Total capital allowances claimed" oninput="onFigureInput()">
+          <p class="help-text">Tax saving will be auto-calculated.</p>
+        </div>
+        <div>
+          <label>Group Relief (£)</label>
+          <input id="groupRelief" type="number" placeholder="Group relief surrendered/claimed" oninput="onFigureInput()">
+          <p class="help-text">Tax saving will be auto-calculated.</p>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ PREVIEW PANEL ============ -->
+  <section class="preview-panel">
+    <div class="preview-paper" id="preview">
+      <p class="empty-note">Fill in the form on the left to generate your email preview.</p>
+    </div>
+    <div class="footer-info" style="margin-top:16px; border-radius:6px;">
+      Tip: Use "Copy Email" to paste straight into Outlook with formatting preserved.
+    </div>
+  </section>
+</main>
+
+
+
+<div class="modal-backdrop" id="sectorModal">
+  <div class="modal" style="max-width:720px;">
+    <h2>Manage Sectors</h2>
+    <p style="font-size:12px;color:#6b7280;margin:0 0 12px 0;">Custom sectors are saved on this device. Use Export to share with colleagues, or Import to load a colleague\'s file.</p>
+    <table id="sectorTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:#f3f4f6;">
+          <th style="text-align:left;padding:6px;border-bottom:1px solid #e5e7eb;">Sector</th>
+          <th style="text-align:left;padding:6px;border-bottom:1px solid #e5e7eb;">Margin Note</th>
+          <th style="text-align:left;padding:6px;border-bottom:1px solid #e5e7eb;">Cost Drivers</th>
+          <th style="width:80px;border-bottom:1px solid #e5e7eb;"></th>
+        </tr>
+      </thead>
+      <tbody id="sectorTableBody"></tbody>
+    </table>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e5e7eb;">
+      <h3 style="margin:0 0 8px 0;font-size:13px;color:#0b3b5c;text-transform:uppercase;letter-spacing:0.5px;">Add / Edit Sector</h3>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;">
+        <input id="secName" placeholder="Sector name (e.g. Engineering)">
+        <input id="secMargin" placeholder="Margin note (e.g. moderate, driven by project pricing)">
+      </div>
+      <input id="secDrivers" placeholder="Cost drivers (e.g. labour, materials, subcontractor mix)" style="margin-top:6px;">
+      <button class="primary" style="margin-top:8px" onclick="saveSectorEdit()">Save Sector</button>
+      <button class="secondary" style="margin-top:8px;margin-left:4px;" onclick="clearSectorEdit()">Clear</button>
+    </div>
+    <div class="actions-row" style="border-top:1px solid #e5e7eb;margin-top:14px;padding-top:14px;">
+      <button class="secondary" onclick="exportSectors()">Export Sectors…</button>
+      <button class="secondary" onclick="importSectors()">Import Sectors…</button>
+      <button class="secondary" onclick="resetSectors()">Restore Defaults</button>
+      <button class="primary" onclick="closeSectorModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="extractionModal">
+  <div class="modal">
+    <h2>Accounts Upload – Extraction Summary</h2>
+    <div id="extractionBody"></div>
+    <div class="actions-row">
+      <button class="primary" onclick="closeModal()">OK, Review Form</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Field IDs =====
+const FIELD_IDS = [
+  'clientName','companyName','yeDate','currYear','prevYear','bizActivity','bizSector',
+  'curr_turnover','prev_turnover','curr_staff','prev_staff',
+  'curr_other','prev_other','curr_pbt','prev_pbt',
+  'curr_ct','prev_ct','curr_np','prev_np','curr_na','prev_na',
+  'curr_cos','prev_cos','curr_gp','prev_gp','curr_admin','prev_admin',
+  'curr_op','prev_op','curr_int','prev_int','curr_fa','prev_fa',
+  'curr_ca','prev_ca','curr_cl','prev_cl','curr_ltl','prev_ltl','framework',
+  'useDashboard',
+  'useTrading','tradingNarrative','useBS','bsNarrative',
+  'useDLA','dlaBalance','dlaDeadline','dlaNarrative',
+  'ctPayDate','taxableProfits','ctRate','capAllow','groupRelief',
+  'useDiv','curr_div','prev_div','divNarrative'
+];
+
+function fmt(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '–';
+  const v = Number(n);
+  return v.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtSigned(n) {
+  if (n === '' || n === null || n === undefined || isNaN(n)) return '–';
+  const v = Number(n);
+  if (v < 0) return '(' + Math.abs(v).toLocaleString('en-GB') + ')';
+  return v.toLocaleString('en-GB');
+}
+function num(id) {
+  const v = document.getElementById(id).value;
+  if (v === '') return null;
+  return Number(v);
+}
+function val(id) { return document.getElementById(id).value; }
+function chk(id) { return document.getElementById(id).checked; }
+
+function pctChange(curr, prev) {
+  if (prev === null || prev === 0 || curr === null) return null;
+  return ((curr - prev) / Math.abs(prev)) * 100;
+}
+
+
+
+// Track last auto-generated narrative so we can detect user edits and re-regen safely
+let lastDlaAutoGen = '';
+let lastDivAutoGen = '';
+let lastTradingAutoGen = '';
+let lastBsAutoGen = '';
+
+function isAutoModeDla() {
+  const cur = val('dlaNarrative');
+  return cur.trim() === '' || cur === lastDlaAutoGen;
+}
+function isAutoModeDiv() {
+  const cur = val('divNarrative');
+  return cur.trim() === '' || cur === lastDivAutoGen;
+}
+
+function onDlaFieldChange() {
+  if (chk('useDLA') && isAutoModeDla()) autoDLANarrative();
+  else render();
+}
+function onDivFieldChange() {
+  if (chk('useDiv') && isAutoModeDiv()) autoDivNarrative();
+  else render();
+}
+
+// Auto-tick the checkbox when user starts filling in balance/amount
+function onDlaBalanceInput() {
+  const v = num('dlaBalance');
+  if (v !== null && v > 0 && !chk('useDLA')) {
+    document.getElementById('useDLA').checked = true;
+  }
+  onDlaFieldChange();
+}
+function onDivAmountInput() {
+  const v = num('curr_div');
+  if (v !== null && v > 0 && !chk('useDiv')) {
+    document.getElementById('useDiv').checked = true;
+  }
+  onDivFieldChange();
+}
+
+
+// Auto-mode tracking for Trading Performance and Balance Sheet narratives
+function isAutoModeTrading() {
+  const cur = val('tradingNarrative');
+  return cur.trim() === '' || cur === lastTradingAutoGen;
+}
+function isAutoModeBs() {
+  const cur = val('bsNarrative');
+  return cur.trim() === '' || cur === lastBsAutoGen;
+}
+
+// Called whenever a figure / sector / activity / CT-related input changes.
+// Regenerates the Trading and Balance Sheet narratives if they are still in
+// auto mode (i.e. haven't been manually edited), otherwise just re-renders.
+function onFigureInput() {
+  let regenerated = false;
+  if (chk('useTrading') && isAutoModeTrading()) {
+    try { autoTradingNarrative(); regenerated = true; } catch (e) { console.warn('autoTrading failed', e); }
+  }
+  if (chk('useBS') && isAutoModeBs()) {
+    try { autoBSNarrative(); regenerated = true; } catch (e) { console.warn('autoBs failed', e); }
+  }
+  if (!regenerated) render();
+}
+
+function onUseDLAToggle() {
+  if (chk('useDLA') && isAutoModeDla()) autoDLANarrative();
+  else render();
+}
+function onUseDivToggle() {
+  if (chk('useDiv') && isAutoModeDiv()) autoDivNarrative();
+  else render();
+}
+
+function autoTradingNarrative() {
+  const fr = document.querySelector('input[name="framework"]:checked').value;
+  const sectorKey = val('bizSector');
+  const sectors = getSectors();
+  const sect = sectorKey ? sectors[sectorKey] : null;
+  const activity = val('bizActivity').trim();
+  const co = val('companyName') || 'the company';
+  const py = val('prevYear') || 'prior year';
+  const parts = [];
+
+  const t   = num('curr_turnover'), tp   = num('prev_turnover');
+  const cos = num('curr_cos'),      cosp = num('prev_cos');
+  const gp  = num('curr_gp'),       gpp  = num('prev_gp');
+  const adm = num('curr_admin'),    admp = num('prev_admin');
+  const op  = num('curr_op'),       opp  = num('prev_op');
+  const intr= num('curr_int'),      intp = num('prev_int');
+  const s   = num('curr_staff'),    sp   = num('prev_staff');
+  const o   = num('curr_other'),    oo   = num('prev_other');
+  const pbt = num('curr_pbt'),      pbtp = num('prev_pbt');
+  const np  = num('curr_np'),       npp  = num('prev_np');
+
+  // Movement sentence written for natural reading — no parentheses
+  function move(curr, prev, verb) {
+    if (curr === null || prev === null) return null;
+    const d = curr - prev;
+    const pct = pctChange(curr, prev);
+    if (d === 0) return `${verb} held steady at £${fmt(curr)} for the year`;
+    const dir = d > 0 ? 'up' : 'down';
+    const movement = d > 0 ? 'increase' : 'decrease';
+    if (pct !== null) {
+      return `${verb} came in at £${fmt(curr)} for the year, ${dir} from £${fmt(prev)} last year, representing a ${Math.abs(pct).toFixed(1)}% ${movement}`;
+    }
+    return `${verb} came in at £${fmt(curr)} for the year, ${dir} from £${fmt(prev)} last year`;
+  }
+
+  // ---- Turnover ----
+  if (t !== null && tp !== null) {
+    const r = move(t, tp, 'Turnover');
+    if (r) {
+      const pct = pctChange(t, tp);
+      let stab = '';
+      if (pct !== null) {
+        if (Math.abs(pct) < 2)       stab = '. This points to a broadly stable trading position year on year';
+        else if (pct >= 15)          stab = ', representing strong top-line growth in the year';
+        else if (pct >= 5)           stab = ', a healthy uplift on the prior year';
+        else if (pct >= 2)           stab = ', a modest uplift compared to last year';
+        else if (pct <= -15)         stab = ', reflecting a material contraction in trading activity';
+        else if (pct <= -5)          stab = ', a notable softening that may warrant review of the pipeline';
+        else                         stab = ', a slight easing on the prior year';
+      }
+      parts.push(r + stab + '.');
+    }
+  } else if (t !== null) {
+    parts.push(`Turnover for the year was £${fmt(t)}.`);
+  }
+
+  if (fr === 'frs102') {
+    // ---- Cost of sales ----
+    if (cos !== null && cosp !== null) {
+      let s2 = move(cos, cosp, 'Cost of sales');
+      if (t !== null && t > 0 && cos > 0) s2 += `, which equates to ${((cos/t)*100).toFixed(1)}% of turnover`;
+      parts.push(s2 + '.');
+    }
+
+    // ---- Gross profit + margin ----
+    if (gp !== null && gpp !== null) {
+      let s3 = move(gp, gpp, 'Gross profit') + '.';
+      if (t !== null && tp !== null && t > 0 && tp > 0) {
+        const margin = (gp / t) * 100;
+        const pmargin = (gpp / tp) * 100;
+        const mDiff = margin - pmargin;
+        s3 += ` Gross margin for the year stands at ${margin.toFixed(1)}%, compared to ${pmargin.toFixed(1)}% last year`;
+        if (Math.abs(mDiff) >= 0.5) s3 += `, ${mDiff > 0 ? 'an improvement' : 'a reduction'} of ${Math.abs(mDiff).toFixed(1)} percentage points`;
+        s3 += '.';
+      }
+      if (sect && sect.marginNote) {
+        s3 += ` Gross margins in ${sect.label.toLowerCase()} businesses tend to be ${sect.marginNote}.`;
+      }
+      parts.push(s3);
+    }
+
+    // ---- Admin expenses ----
+    if (adm !== null && admp !== null) {
+      let s4 = move(adm, admp, 'Administrative expenses') + '.';
+      if (t !== null && t > 0) s4 += ` These costs make up ${((adm/t)*100).toFixed(1)}% of turnover for the year.`;
+      if (sect && sect.drivers) {
+        s4 += ` In this sector, the principal cost drivers typically include ${sect.drivers}.`;
+      }
+      parts.push(s4);
+    }
+
+    // ---- Operating profit + margin ----
+    if (op !== null && opp !== null) {
+      let s5 = move(op, opp, 'Operating profit') + '.';
+      if (t !== null && tp !== null && t > 0 && tp > 0) {
+        const opM = (op / t) * 100;
+        const popM = (opp / tp) * 100;
+        const dM = opM - popM;
+        s5 += ` Operating margin for the year is ${opM.toFixed(1)}%, compared with ${popM.toFixed(1)}% last year`;
+        if (Math.abs(dM) >= 0.5) s5 += `, ${dM > 0 ? 'an expansion' : 'a contraction'} of ${Math.abs(dM).toFixed(1)} percentage points`;
+        s5 += '.';
+      }
+      parts.push(s5);
+    }
+
+    // ---- Interest payable ----
+    if (intr !== null && intp !== null && (intr > 0 || intp > 0)) {
+      parts.push(move(intr, intp, 'Interest payable and similar charges') + '.');
+    }
+  } else {
+    // ---- FRS 105 ----
+    if (s !== null && sp !== null) {
+      let sCmt = move(s, sp, 'Staff costs') + '.';
+      if (sect && sect.drivers) sCmt += ` In this sector, the principal cost drivers typically include ${sect.drivers}.`;
+      parts.push(sCmt);
+    }
+    if (o !== null && oo !== null) {
+      parts.push(move(o, oo, 'Other charges covering premises, administration and finance costs') + '.');
+    }
+  }
+
+  // ---- Profit before tax ----
+  if (pbt !== null && pbtp !== null) {
+    const d = pbt - pbtp;
+    let s6 = 'Overall, profit before taxation ';
+    if (d === 0) s6 += `held steady at £${fmt(pbt)} for the year.`;
+    else {
+      const dir = d > 0 ? 'rose' : 'fell';
+      s6 += `${dir} by £${fmt(Math.abs(d))} to £${fmt(pbt)}, compared with £${fmt(pbtp)} last year.`;
+    }
+    parts.push(s6);
+  } else if (pbt !== null) {
+    parts.push(`Profit before taxation for the year is £${fmt(pbt)}.`);
+  }
+
+  // ---- Net profit ----
+  if (np !== null && npp !== null) {
+    let s7 = `After tax, ${co} generated a net profit of £${fmt(np)} for the year, compared with £${fmt(npp)} last year`;
+    if (t !== null && t > 0) s7 += `, equivalent to a net margin of ${((np/t)*100).toFixed(1)}%`;
+    s7 += '.';
+    parts.push(s7);
+  } else if (np !== null) {
+    parts.push(`After tax, ${co} generated a net profit of £${fmt(np)} for the year.`);
+  }
+
+  const _txt = parts.join('\n\n');
+  document.getElementById('tradingNarrative').value = _txt;
+  lastTradingAutoGen = _txt;
+  render();
+}
+
+function autoBSNarrative() {
+  const fr = document.querySelector('input[name="framework"]:checked').value;
+  const parts = [];
+  const na  = num('curr_na'),  nap = num('prev_na');
+  const fa  = num('curr_fa'),  fap = num('prev_fa');
+  const ca  = num('curr_ca'),  cap = num('prev_ca');
+  const cl  = num('curr_cl'),  clp = num('prev_cl');
+  const ltl = num('curr_ltl'), ltlp= num('prev_ltl');
+  const py = val('prevYear') || 'prior year';
+  const co = val('companyName') || 'the company';
+
+  // -- Fixed assets (FRS 102 only) --
+  if (fr === 'frs102' && fa !== null) {
+    let s = `Fixed assets at the year end have a net book value of £${fmt(fa)}`;
+    if (fap !== null) {
+      s += `, compared with £${fmt(fap)} last year`;
+      const d = fa - fap;
+      if (d > 100) s += ` \u2014 an increase of £${fmt(d)} as capital expenditure has exceeded depreciation in the year`;
+      else if (d < -100) s += ` \u2014 a reduction of £${fmt(Math.abs(d))} as depreciation has outpaced any capital additions`;
+    }
+    s += '.';
+    parts.push(s);
+  }
+
+  // -- Current assets --
+  if (ca !== null) {
+    let s = `Current assets at the year end totalled £${fmt(ca)}`;
+    if (cap !== null) {
+      s += `, compared with £${fmt(cap)} last year`;
+      const d = ca - cap;
+      if (Math.abs(d) >= 1000) {
+        s += `, ${d > 0 ? 'an increase' : 'a reduction'} of £${fmt(Math.abs(d))}`;
+      }
+    }
+    s += '.';
+    parts.push(s);
+  }
+
+  // -- Current liabilities --
+  if (cl !== null) {
+    let s = `Creditors falling due within one year stand at £${fmt(cl)}`;
+    if (clp !== null) {
+      s += `, compared with £${fmt(clp)} last year`;
+      const d = cl - clp;
+      if (Math.abs(d) >= 1000) {
+        s += `, ${d > 0 ? 'an increase' : 'a reduction'} of £${fmt(Math.abs(d))}`;
+      }
+    }
+    s += '. This balance covers trade creditors, taxation, accruals and other short-term liabilities.';
+    parts.push(s);
+  }
+
+  // -- Net current assets / liabilities (derived) --
+  if (ca !== null && cl !== null) {
+    const ncas = ca - cl;
+    let s;
+    if (ncas > 0) {
+      s = `This gives net current assets of £${fmt(ncas)}, indicating that ${co} holds sufficient short-term assets to cover its current liabilities as they fall due.`;
+    } else if (ncas < 0) {
+      s = `This results in net current liabilities of £${fmt(Math.abs(ncas))}, meaning short-term obligations currently exceed short-term assets \u2014 a position worth monitoring closely.`;
+    } else {
+      s = 'Short-term assets and liabilities are evenly matched at the year end.';
+    }
+    parts.push(s);
+  }
+
+  // -- Long-term liabilities --
+  if (ltl !== null && ltl > 0) {
+    let s = `Long-term liabilities, i.e. creditors falling due after more than one year, total £${fmt(ltl)}`;
+    if (ltlp !== null) {
+      s += `, compared with £${fmt(ltlp)} last year`;
+      const d = ltl - ltlp;
+      if (Math.abs(d) >= 1000) {
+        s += `, ${d > 0 ? 'reflecting additional long-term borrowing taken on during the year' : 'as scheduled repayments have reduced the outstanding balance'}`;
+      }
+    }
+    s += '.';
+    parts.push(s);
+  }
+
+  // -- Overall net assets --
+  if (na !== null) {
+    let s = `Net assets at the year end stand at £${fmt(na)}`;
+    if (nap !== null) {
+      s += `, compared with £${fmt(nap)} last year`;
+      const d = na - nap;
+      if (d > 100)      s += ` \u2014 an increase of £${fmt(d)} representing post-tax profits retained in ${co} after distributions to shareholders`;
+      else if (d < -100) s += ` \u2014 a reduction of £${fmt(Math.abs(d))} reflecting drawings and dividends taken during the year exceeding post-tax profits generated`;
+    }
+    s += '.';
+    parts.push(s);
+  }
+
+  if (fr === 'frs105' && ca === null && cl === null && ltl === null) {
+    parts.push('In line with the micro-entity provisions adopted under FRS 105, no further breakdown of debtors, creditors or fixed assets is required to be disclosed on the face of the balance sheet.');
+  }
+
+  const _txt = parts.join('\n\n');
+  document.getElementById('bsNarrative').value = _txt;
+  lastBsAutoGen = _txt;
+  render();
+}
+
+
+
+function autoDLANarrative() {
+  const bal = num('dlaBalance');
+  const dl  = val('dlaDeadline') || '[deadline]';
+  const parts = [];
+
+  if (bal === null) {
+    parts.push("At the year end the director had an overdrawn loan balance with the company. The exact balance should be confirmed before sending this email.");
+  } else if (bal <= 10000) {
+    parts.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+    parts.push(`As this balance is below £10,000, there are no taxable benefit-in-kind implications under HMRC's beneficial loan rules.`);
+    parts.push(`However, please ensure this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+  } else {
+    parts.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+    parts.push(`As this balance exceeds £10,000, a benefit-in-kind will be reportable on a form P11D, with associated Class 1A National Insurance for the company.`);
+    parts.push(`We would strongly recommend that this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+  }
+
+  parts.push("What is s.455? Section 455 is a tax charge under the Corporation Tax Act 2010 that applies where a director, or other participator, owes the company money at the end of the accounting period and the loan remains outstanding more than nine months and one day after the year end.");
+  if (bal !== null && bal > 0) {
+    const s455 = bal * 0.3375;
+    parts.push(`How is it calculated? The charge is 33.75% of the unpaid balance. Based on a year-end balance of £${fmt(bal)}, the potential s.455 charge would be approximately £${fmt(Math.round(s455))}, payable by the company alongside its Corporation Tax.`);
+  } else {
+    parts.push("How is it calculated? The charge is 33.75% of the overdrawn balance that remains unpaid nine months after the year end, and is payable by the company alongside its main Corporation Tax liability.");
+  }
+  parts.push("The good news is that the charge is refundable: once the loan has been repaid, HMRC will release the s.455 amount back to the company, although the refund is only processed nine months after the end of the accounting period in which the repayment took place.");
+
+  const _txt = parts.join('\n\n');
+  document.getElementById('dlaNarrative').value = _txt;
+  lastDlaAutoGen = _txt;
+  render();
+}
+
+function autoDivNarrative() {
+  const cd = num('curr_div');
+  const pd = num('prev_div');
+  const py = val('prevYear') || 'prior year';
+  const parts = [];
+
+  if (cd === null) {
+    parts.push('Dividends were declared and paid to the shareholders during the year. The specific amount should be confirmed before sending this email.');
+  } else {
+    let line1 = `Dividends of £${fmt(cd)} were declared and paid to the shareholders during the year`;
+    if (pd !== null) {
+      const diff = cd - pd;
+      if (Math.abs(diff) >= 500) {
+        line1 += `, ${diff > 0 ? 'an increase' : 'a reduction'} of £${fmt(Math.abs(diff))} compared with £${fmt(pd)} last year`;
+      } else {
+        line1 += `, compared with £${fmt(pd)} last year`;
+      }
+    }
+    line1 += '.';
+    parts.push(line1);
+    parts.push('Please also note that dividends may only lawfully be paid from distributable reserves; we have confirmed that sufficient reserves were available at the date of declaration based on the figures provided.');
+  }
+
+  const _txt = parts.join('\n\n');
+  document.getElementById('divNarrative').value = _txt;
+  lastDivAutoGen = _txt;
+  render();
+}
+
+
+// ===== Visual KPI Dashboard (email-safe HTML tables with inline styles) =====
+function buildDashboardHtml() {
+  const t  = num('curr_turnover'), tp  = num('prev_turnover');
+  const gp = num('curr_gp'),       gpp = num('prev_gp');
+  const op = num('curr_op'),       opp = num('prev_op');
+  const pb = num('curr_pbt'),      pbp = num('prev_pbt');
+  const np = num('curr_np'),       npp = num('prev_np');
+  const na = num('curr_na'),       nap = num('prev_na');
+  const fr = document.querySelector('input[name="framework"]:checked').value;
+  const pyLabel = val('prevYear') || 'prior';
+
+  // Select 4 KPI cards based on framework + data availability
+  const kpis = [];
+  kpis.push({ label: 'Turnover',        value: t,  prev: tp,  color: '#0b3b5c' });
+  if (fr === 'frs102' && gp !== null) {
+    kpis.push({ label: 'Gross Profit',  value: gp, prev: gpp, color: '#0e7490', extra: (t && t>0) ? `${((gp/t)*100).toFixed(1)}% margin` : null });
+  }
+  if (fr === 'frs102' && op !== null && kpis.length < 3) {
+    kpis.push({ label: 'Operating Profit', value: op, prev: opp, color: '#0d9488' });
+  }
+  if (pb !== null && kpis.length < 3) kpis.push({ label: 'Profit Before Tax', value: pb, prev: pbp, color: '#1d4ed8' });
+  if (np !== null && kpis.length < 4) kpis.push({ label: 'Net Profit',        value: np, prev: npp, color: '#15803d' });
+  if (na !== null && kpis.length < 4) kpis.push({ label: 'Net Assets',        value: na, prev: nap, color: '#7e22ce' });
+  while (kpis.length < 4) kpis.push(null);
+  kpis.length = 4;
+
+  if (kpis.filter(k => k && k.value !== null).length === 0) return '';
+
+  const pct = (c, p) => (c === null || p === null || p === 0) ? null : ((c - p) / Math.abs(p)) * 100;
+
+  // Compact card sizing — significantly reduced so the dashboard supports the
+  // email content without dominating it in Outlook.
+  const CARD_H = 64;
+  const CARD_PAD = '6px 9px';
+
+  function emptyCard() {
+    return `<td width="50%" valign="top" style="padding:2px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%" height="${CARD_H}" style="background-color:transparent;height:${CARD_H}px;min-height:${CARD_H}px;">
+        <tr><td style="padding:${CARD_PAD};">&nbsp;</td></tr>
+      </table>
+    </td>`;
+  }
+
+  function card(k) {
+    if (!k || k.value === null) return emptyCard();
+    const d = pct(k.value, k.prev);
+    const arrow = d === null ? '' : (d > 0.1 ? '&#9650;' : (d < -0.1 ? '&#9660;' : '&#9670;'));
+    const deltaColor = d === null ? 'rgba(255,255,255,0.75)' : (d > 0.1 ? '#86efac' : (d < -0.1 ? '#fca5a5' : 'rgba(255,255,255,0.75)'));
+    const deltaText = d === null
+      ? 'No prior year data'
+      : `${arrow} ${d >= 0 ? '+' : ''}${d.toFixed(1)}% vs ${escapeHtml(pyLabel)}`;
+    const extraText = k.extra ? escapeHtml(k.extra) : '&nbsp;';
+
+    return `<td width="50%" valign="top" style="padding:2px;">
+      <table cellpadding="0" cellspacing="0" border="0" width="100%" height="${CARD_H}" style="background-color:${k.color};border-radius:4px;mso-border-radius:4px;height:${CARD_H}px;min-height:${CARD_H}px;table-layout:fixed;">
+        <tr><td valign="top" style="padding:${CARD_PAD};color:#ffffff;font-family:Calibri,Arial,sans-serif;height:${CARD_H}px;vertical-align:top;">
+          <div style="font-size:8px;color:rgba(255,255,255,0.85);font-weight:600;letter-spacing:0.8px;text-transform:uppercase;line-height:10px;height:10px;overflow:hidden;">${k.label}</div>
+          <div style="font-size:14px;color:#ffffff;font-weight:700;margin:1px 0;line-height:16px;height:16px;overflow:hidden;">&pound;${fmt(k.value)}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,0.85);line-height:10px;height:10px;overflow:hidden;">${extraText}</div>
+          <div style="font-size:8px;color:${deltaColor};margin-top:2px;font-weight:600;line-height:10px;height:10px;overflow:hidden;">${deltaText}</div>
+        </td></tr>
+      </table>
+    </td>`;
+  }
+
+  let html = '<table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:10px 0 14px 0;border-collapse:separate;">';
+  html += '<tr>' + card(kpis[0]) + card(kpis[1]) + '</tr>';
+  html += '<tr>' + card(kpis[2]) + card(kpis[3]) + '</tr>';
+  html += '</table>';
+  return html;
+}
+
+
+// =====================================================
+// Sector management (loadable + persistent + shareable)
+// =====================================================
+const DEFAULT_SECTORS = {
+  professional_services: { label: 'Professional Services', marginNote: 'typically strong, as direct costs are limited to subcontractor time and disbursements', drivers: 'billable hours, recoverable rates and fee earner utilisation' },
+  retail:                { label: 'Retail',                marginNote: 'tighter, reflecting competitive pricing and stock costs',                        drivers: 'footfall, average transaction value and product mix' },
+  wholesale:             { label: 'Wholesale & Distribution', marginNote: 'modest, as is typical for volume-driven distribution',                    drivers: 'order volume, supplier purchasing terms and logistics costs' },
+  hospitality:           { label: 'Hospitality & Leisure',  marginNote: 'variable, strongly affected by occupancy, wage rates and food/beverage costs', drivers: 'covers served, average spend per head and labour-to-revenue ratios' },
+  construction:          { label: 'Construction & Trades',  marginNote: 'project-dependent, moving with materials pricing and site efficiency',         drivers: 'contract pipeline, materials inflation, subcontractor rates and labour utilisation' },
+  property:              { label: 'Property & Real Estate', marginNote: 'usually strong, characteristic of recurring rental income streams',           drivers: 'occupancy levels, rental yields and finance costs' },
+  manufacturing:         { label: 'Manufacturing',          marginNote: 'sensitive to raw material costs and production volumes',                       drivers: 'output volume, input pricing and capacity utilisation' },
+  tech:                  { label: 'Technology / IT',        marginNote: 'scalable, typical of software and IT services with low marginal cost of delivery', drivers: 'recurring revenue, customer retention and headcount growth' },
+  healthcare:            { label: 'Healthcare',             marginNote: 'constrained by regulated funding rates and the cost of clinical staff',        drivers: 'patient throughput, funding mix and clinical headcount' },
+  creative:              { label: 'Creative & Media',       marginNote: 'project-based, varying with retainer mix and freelance use',                   drivers: 'campaign work, retained client base and freelance subcontractor spend' },
+  financial:             { label: 'Financial Services',     marginNote: 'fee-driven, reflecting recurring service revenue and compliance overheads',     drivers: 'client assets, transaction volumes and regulatory operating costs' },
+  other:                 { label: 'Other',                  marginNote: '',                                                                              drivers: '' }
+};
+
+let _sectors = null;
+function getSectors() {
+  if (_sectors) return _sectors;
+  try {
+    const stored = localStorage.getItem('pulseSectors');
+    if (stored) {
+      _sectors = Object.assign({}, DEFAULT_SECTORS, JSON.parse(stored));
+      return _sectors;
+    }
+  } catch (e) { console.warn(e); }
+  _sectors = Object.assign({}, DEFAULT_SECTORS);
+  return _sectors;
+}
+function persistSectors() {
+  try { localStorage.setItem('pulseSectors', JSON.stringify(_sectors)); } catch (e) { console.warn(e); }
+}
+function rebuildSectorDropdown() {
+  const sel = document.getElementById('bizSector');
+  const current = sel.value;
+  const opts = ['<option value="">— Select —</option>'];
+  const sectors = getSectors();
+  Object.keys(sectors).sort((a,b) => sectors[a].label.localeCompare(sectors[b].label)).forEach(k => {
+    opts.push(`<option value="${k}">${sectors[k].label.replace(/&/g,'&amp;')}</option>`);
+  });
+  sel.innerHTML = opts.join('');
+  if (current) sel.value = current;
+}
+
+function openSectorManager(e) {
+  if (e) e.preventDefault();
+  refreshSectorTable();
+  document.getElementById('sectorModal').classList.add('show');
+}
+function closeSectorModal() {
+  document.getElementById('sectorModal').classList.remove('show');
+  rebuildSectorDropdown();
+  render();
+}
+function refreshSectorTable() {
+  const body = document.getElementById('sectorTableBody');
+  const sectors = getSectors();
+  body.innerHTML = Object.keys(sectors).sort((a,b) => sectors[a].label.localeCompare(sectors[b].label)).map(k => {
+    const s = sectors[k];
+    const isDefault = !!DEFAULT_SECTORS[k];
+    return `<tr style="border-bottom:1px solid #f3f4f6;">
+      <td style="padding:6px;">${s.label.replace(/&/g,'&amp;')}${isDefault ? '<span style="font-size:10px;color:#9ca3af;margin-left:4px;">(built-in)</span>' : ''}</td>
+      <td style="padding:6px;color:#4b5563;">${(s.marginNote||'').replace(/&/g,'&amp;') || '—'}</td>
+      <td style="padding:6px;color:#4b5563;">${(s.drivers||'').replace(/&/g,'&amp;') || '—'}</td>
+      <td style="padding:6px;text-align:right;">
+        <a href="#" onclick="loadSectorEdit('${k}');return false;" style="color:#0ea5e9;font-size:12px;">Edit</a>
+        ${isDefault ? '' : ' <a href="#" onclick="deleteSector(\''+k+'\');return false;" style="color:#dc2626;font-size:12px;margin-left:8px;">Delete</a>'}
+      </td>
+    </tr>`;
+  }).join('');
+}
+let _editingSectorKey = null;
+function loadSectorEdit(k) {
+  const s = getSectors()[k];
+  if (!s) return;
+  _editingSectorKey = k;
+  document.getElementById('secName').value = s.label;
+  document.getElementById('secMargin').value = s.marginNote || '';
+  document.getElementById('secDrivers').value = s.drivers || '';
+}
+function clearSectorEdit() {
+  _editingSectorKey = null;
+  document.getElementById('secName').value = '';
+  document.getElementById('secMargin').value = '';
+  document.getElementById('secDrivers').value = '';
+}
+function saveSectorEdit() {
+  const name = document.getElementById('secName').value.trim();
+  if (!name) { showToast('Please enter a sector name'); return; }
+  const marginNote = document.getElementById('secMargin').value.trim();
+  const drivers = document.getElementById('secDrivers').value.trim();
+  const key = _editingSectorKey || name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const sectors = getSectors();
+  sectors[key] = { label: name, marginNote, drivers };
+  persistSectors();
+  refreshSectorTable();
+  clearSectorEdit();
+  showToast('Sector saved');
+}
+function deleteSector(k) {
+  if (DEFAULT_SECTORS[k]) { showToast('Built-in sectors cannot be deleted'); return; }
+  if (!confirm('Delete this sector?')) return;
+  const sectors = getSectors();
+  delete sectors[k];
+  persistSectors();
+  refreshSectorTable();
+}
+function resetSectors() {
+  if (!confirm('Restore default sectors (your custom additions will be removed)?')) return;
+  _sectors = Object.assign({}, DEFAULT_SECTORS);
+  persistSectors();
+  refreshSectorTable();
+  showToast('Sectors reset to defaults');
+}
+function exportSectors() {
+  const blob = new Blob([JSON.stringify(getSectors(), null, 2)], { type: 'application/json' });
+  saveAs(blob, 'pulse-sectors.json');
+  showToast('Sectors exported');
+}
+function importSectors() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const data = JSON.parse(r.result);
+        if (typeof data !== 'object') throw new Error('Invalid format');
+        _sectors = Object.assign({}, DEFAULT_SECTORS, data);
+        persistSectors();
+        refreshSectorTable();
+        showToast('Sectors imported');
+      } catch (err) {
+        showToast('Invalid sectors file');
+      }
+    };
+    r.readAsText(file);
+  };
+  input.click();
+}
+
+// ===== Render =====
+function render() {
+  const name = val('clientName') || '[Name]';
+  const co = val('companyName') || '[Company Name]';
+  const ye = val('yeDate') || '[Y/E date]';
+  const cy = val('currYear') || 'Current';
+  const py = val('prevYear') || 'Prior';
+  document.getElementById('hdrCurr').textContent = cy;
+  document.getElementById('hdrPrev').textContent = py;
+
+  // Inline styles so the email retains formatting when copied into Outlook,
+  // which strips CSS class rules from the page.
+  const S_H3 = 'font-family:Calibri,Arial,sans-serif;font-size:15px;font-weight:700;margin:18px 0 8px 0;color:#0b3b5c;';
+  const S_P  = 'font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55;color:#111827;margin:0 0 12px 0;';
+  const S_UL = 'font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55;color:#111827;margin:0 0 14px 0;padding-left:24px;';
+  const S_LI = 'margin-bottom:6px;';
+  const S_SUB= 'font-family:Calibri,Arial,sans-serif;font-size:14px;font-weight:700;color:#0b3b5c;border-bottom:2px solid #0b3b5c;padding-bottom:10px;margin:0 0 18px 0;';
+  const S_STR= 'color:#0b3b5c;';
+
+  const figures = [
+    ['Turnover', num('curr_turnover'), num('prev_turnover')],
+    ['Cost of sales', num('curr_cos'), num('prev_cos')],
+    ['Gross profit', num('curr_gp'), num('prev_gp')],
+    ['Administrative expenses', num('curr_admin'), num('prev_admin')],
+    ['Staff costs', num('curr_staff'), num('prev_staff')],
+    ['Other charges', num('curr_other'), num('prev_other')],
+    ['Operating profit', num('curr_op'), num('prev_op')],
+    ['Interest payable', num('curr_int'), num('prev_int')],
+    ['Profit before taxation', num('curr_pbt'), num('prev_pbt')],
+    ['Corporation tax', num('curr_ct'), num('prev_ct')],
+    ['Net profit', num('curr_np'), num('prev_np')],
+    ['Fixed assets', num('curr_fa'), num('prev_fa')],
+    ['Net assets', num('curr_na'), num('prev_na')],
+  ];
+
+  let html = '';
+  html += `<p style="${S_SUB}">Subject: ${escapeHtml(co)} || End of Year Accounts &amp; Tax Figures for year ended ${escapeHtml(ye)}</p>`;
+  html += `<p style="${S_P}">Hi ${escapeHtml(name)},</p>`;
+  html += `<p style="${S_P}">I hope you are well.</p>`;
+  html += `<p style="${S_P}">Please find attached the draft financial statements for ${escapeHtml(co)} for the year ended ${escapeHtml(ye)} for your review and approval.</p>`;
+  // Visual dashboard only — bulleted summary removed since the figures are
+  // now embedded inline in the Trading Performance / Balance Sheet narratives.
+  if (chk('useDashboard')) {
+    html += `<h3 style="${S_H3}">Summary of Key Figures</h3>`;
+    html += buildDashboardHtml();
+  }
+
+  if (chk('useTrading') && val('tradingNarrative').trim()) {
+    html += `<h3 style="${S_H3}">Trading Performance</h3>`;
+    const trParas = val('tradingNarrative').split(/\n\s*\n/);
+    for (const para of trParas) {
+      if (para.trim()) html += `<p style="${S_P}">${escapeHtml(para.trim()).replace(/\n/g,'<br>')}</p>`;
+    }
+  }
+  if (chk('useBS') && val('bsNarrative').trim()) {
+    html += `<h3 style="${S_H3}">Balance Sheet Position</h3>`;
+    const bsParas = val('bsNarrative').split(/\n\s*\n/);
+    for (const para of bsParas) {
+      if (para.trim()) html += `<p style="${S_P}">${escapeHtml(para.trim()).replace(/\n/g,'<br>')}</p>`;
+    }
+  }
+  if (chk('useDLA')) {
+    let dla = val('dlaNarrative').trim();
+    if (!dla) {
+      // Generate default on the fly so heading + content appear when ticked
+      const bal = num('dlaBalance');
+      const dl = val('dlaDeadline') || '[deadline]';
+      const pl = [];
+      if (bal === null) {
+        pl.push("At the year end the director had an overdrawn loan balance with the company. The exact balance should be confirmed before sending this email.");
+      } else if (bal <= 10000) {
+        pl.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+        pl.push(`As this balance is below £10,000, there are no taxable benefit-in-kind implications under HMRC's beneficial loan rules.`);
+        pl.push(`However, please ensure this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+      } else {
+        pl.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+        pl.push(`As this balance exceeds £10,000, a benefit-in-kind will be reportable on a form P11D, with associated Class 1A National Insurance for the company.`);
+        pl.push(`We would strongly recommend that this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+      }
+      pl.push("What is s.455? Section 455 is a tax charge under the Corporation Tax Act 2010 that applies where a director, or other participator, owes the company money at the end of the accounting period and the loan remains outstanding more than nine months and one day after the year end.");
+      if (bal !== null && bal > 0) {
+        const s455 = bal * 0.3375;
+        pl.push(`How is it calculated? The charge is 33.75% of the unpaid balance. Based on a year-end balance of £${fmt(bal)}, the potential s.455 charge would be approximately £${fmt(Math.round(s455))}, payable by the company alongside its Corporation Tax.`);
+      } else {
+        pl.push("How is it calculated? The charge is 33.75% of the overdrawn balance that remains unpaid nine months after the year end, and is payable by the company alongside its main Corporation Tax liability.");
+      }
+      pl.push("The good news is that the charge is refundable: once the loan has been repaid, HMRC will release the s.455 amount back to the company, although the refund is only processed nine months after the end of the accounting period in which the repayment took place.");
+      dla = pl.join('\n\n');
+    }
+    if (dla) {
+      html += `<h3 style="${S_H3}">Director's Loan Account</h3>`;
+      const paras = dla.split(/\n\s*\n/);
+      for (const para of paras) {
+        if (para.trim()) html += `<p style="${S_P}">${escapeHtml(para.trim()).replace(/\n/g,'<br>')}</p>`;
+      }
+    }
+  }
+
+  if (chk('useDiv')) {
+    let dn = val('divNarrative').trim();
+    if (!dn) {
+      const cd = num('curr_div');
+      const pd = num('prev_div');
+      const py = val('prevYear') || 'prior year';
+      const pl = [];
+      if (cd === null) {
+        pl.push('Dividends were declared and paid to the shareholders during the year. The specific amount should be confirmed before sending this email.');
+      } else {
+        let line1 = `Dividends of £${fmt(cd)} were declared and paid to the shareholders during the year`;
+        if (pd !== null) line1 += ` (${py}: £${fmt(pd)})`;
+        line1 += '.';
+        pl.push(line1);
+            pl.push('Please also note that dividends may only lawfully be paid from distributable reserves; we have confirmed that sufficient reserves were available at the date of declaration based on the figures provided.');
+      }
+      dn = pl.join('\n\n');
+    }
+    if (dn) {
+      html += `<h3 style="${S_H3}">Dividends</h3>`;
+      const paras = dn.split(/\n\s*\n/);
+      for (const para of paras) {
+        if (para.trim()) html += `<p style="${S_P}">${escapeHtml(para.trim()).replace(/\n/g,'<br>')}</p>`;
+      }
+    }
+  }
+
+  const ct = num('curr_ct');
+  if (ct !== null && (val('ctPayDate') || val('taxableProfits'))) {
+    html += `<h3 style="${S_H3}">Corporation Tax</h3>`;
+    const rate = val('ctRate') || '19';
+    const rateNum = parseFloat(rate) || 0;
+    const ctPay = val('ctPayDate') || '[CT payment deadline]';
+    const tp_ = num('taxableProfits');
+    let line1 = `The Corporation Tax liability for the year is £${fmt(ct)}, calculated at a tax rate of ${escapeHtml(rate)}%`;
+    if (tp_ !== null) line1 += ` on taxable profits of £${fmt(tp_)}`;
+    line1 += `. This is payable to HMRC by ${escapeHtml(ctPay)}.`;
+    html += `<p style="${S_P}">${line1}</p>`;
+
+    // Capital allowances + group relief savings
+    const cap = num('capAllow');
+    const gr  = num('groupRelief');
+    if (cap !== null && cap > 0) {
+      const capSaving = Math.round(cap * rateNum / 100);
+      html += `<p style="${S_P}">Capital allowances of £${fmt(cap)} have been claimed in the year, generating a Corporation Tax saving of approximately £${fmt(capSaving)} at a tax rate of ${escapeHtml(rate)}%.</p>`;
+    }
+    if (gr !== null && gr > 0) {
+      const grSaving = Math.round(gr * rateNum / 100);
+      html += `<p style="${S_P}">Group relief of £${fmt(gr)} has been applied, providing a further Corporation Tax saving of approximately £${fmt(grSaving)} at a tax rate of ${escapeHtml(rate)}%.</p>`;
+    }
+    if ((cap !== null && cap > 0) || (gr !== null && gr > 0)) {
+      const totalSaving = Math.round(((cap||0) + (gr||0)) * rateNum / 100);
+      if ((cap||0) > 0 && (gr||0) > 0) {
+        html += `<p style="${S_P}">Together, these reliefs have reduced the Corporation Tax liability by approximately £${fmt(totalSaving)}.</p>`;
+      }
+    }
+
+    html += `<p style="${S_P}">We will issue automatic payment reminders closer to the payment deadline.</p>`;
+  }
+
+  html += `<h3 style="${S_H3}">Next Steps</h3>`;
+  html += `<p style="${S_P}">Please can you let me know your availability in the next couple of week to arrange a meeting/call to discuss the figures in more detail.</p>`;
+  html += `<p style="${S_P}">If you have any questions in the meantime, don't hesitate to get in touch.</p>`;
+  html += `<p style="${S_P}">Kind regards</p>`;
+
+  document.getElementById('preview').innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+
+// ===== Open as draft in Outlook (via .eml download) =====
+
+// =====================================================
+// Storage for uploaded PDFs so they can be attached to the .eml when the
+// user clicks "Open in Outlook". Each is { buffer: ArrayBuffer, fileName }.
+// =====================================================
+let _uploadedAccountsPdf = null;
+let _uploadedTaxCompPdf  = null;
+
+function clearUploadedPdfs() {
+  _uploadedAccountsPdf = null;
+  _uploadedTaxCompPdf  = null;
+}
+
+// Convert an ArrayBuffer to base64, chunked to avoid call-stack overflow.
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// Wrap base64 at 76 chars per RFC 2045
+function chunkBase64(str, lineLength) {
+  const ll = lineLength || 76;
+  const parts = [];
+  for (let i = 0; i < str.length; i += ll) {
+    parts.push(str.substring(i, i + ll));
+  }
+  return parts.join('\r\n');
+}
+
+async function openInOutlook() {
+  // Immediate visible feedback so the user knows the click was registered
+  showToast('Generating email draft...');
+  console.log('[Pulse] openInOutlook started');
+
+  try {
+    const co = val('companyName') || 'Accounts';
+    const ye = val('yeDate') || '';
+    const subject = (co + ' || End of Year Accounts & Tax Figures for year ended ' + ye).trim();
+    console.log('[Pulse] Subject:', subject);
+
+    // Build HTML body from the rendered preview
+    const previewEl = document.getElementById('preview');
+    if (!previewEl) throw new Error('Preview pane not found');
+    const clone = previewEl.cloneNode(true);
+    const subjEl = clone.querySelector('p[style*="border-bottom"]');
+    if (subjEl) subjEl.remove();
+    const htmlBody = clone.innerHTML;
+    const fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+      '<style>body{font-family:Calibri,Arial,sans-serif;color:#111827;font-size:14px;line-height:1.5;}</style>' +
+      '</head><body>' + htmlBody + '</body></html>';
+    console.log('[Pulse] HTML body length:', fullHtml.length);
+
+    // Attachments
+    const attachments = [];
+    if (typeof _uploadedAccountsPdf !== 'undefined' && _uploadedAccountsPdf) attachments.push(_uploadedAccountsPdf);
+    if (typeof _uploadedTaxCompPdf !== 'undefined' && _uploadedTaxCompPdf)   attachments.push(_uploadedTaxCompPdf);
+    console.log('[Pulse] Attachments:', attachments.length);
+
+    // Build the .eml
+    let eml;
+    if (attachments.length === 0) {
+      eml = [
+        'MIME-Version: 1.0',
+        'X-Unsent: 1',
+        'To: ',
+        'Subject: ' + subject,
+        'X-Mailer: Pulse Accountants Email Generator',
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        fullHtml
+      ].join('\r\n');
+    } else {
+      const boundary = '----=_PulseBoundary_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+      const lines = [
+        'MIME-Version: 1.0',
+        'X-Unsent: 1',
+        'To: ',
+        'Subject: ' + subject,
+        'X-Mailer: Pulse Accountants Email Generator',
+        'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+        '',
+        'This is a multipart message in MIME format.',
+        '',
+        '--' + boundary,
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: 8bit',
+        '',
+        fullHtml,
+        ''
+      ];
+      for (const att of attachments) {
+        const safeName = (att.fileName || 'document.pdf').replace(/"/g, '');
+        const b64 = chunkBase64(arrayBufferToBase64(att.buffer));
+        lines.push('--' + boundary);
+        lines.push('Content-Type: application/pdf; name="' + safeName + '"');
+        lines.push('Content-Disposition: attachment; filename="' + safeName + '"');
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+        lines.push(b64);
+        lines.push('');
+      }
+      lines.push('--' + boundary + '--');
+      eml = lines.join('\r\n');
+    }
+
+    console.log('[Pulse] .eml size:', eml.length, 'bytes');
+
+    const blob = new Blob([eml], { type: 'message/rfc822' });
+    const fname = (co.replace(/[^\w\s-]/g, '').trim() || 'Accounts Email') + ' - Draft.eml';
+    console.log('[Pulse] Filename:', fname);
+
+    // Try multiple download paths for maximum reliability
+    let downloaded = false;
+
+    // Method 1: file-saver library
+    if (typeof saveAs === 'function') {
+      try {
+        saveAs(blob, fname);
+        downloaded = true;
+        console.log('[Pulse] saveAs() succeeded');
+      } catch (e) {
+        console.warn('[Pulse] saveAs() threw:', e);
+      }
+    } else {
+      console.warn('[Pulse] saveAs not defined (file-saver may not have loaded)');
+    }
+
+    // Method 2: manual <a download> click fallback
+    if (!downloaded) {
+      try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        downloaded = true;
+        console.log('[Pulse] Fallback <a download> succeeded');
+      } catch (e) {
+        console.error('[Pulse] Fallback <a> failed:', e);
+        throw new Error('Browser blocked the download: ' + (e.message || 'unknown'));
+      }
+    }
+
+    // Also stash a formatted HTML copy on the clipboard in case the user
+    // already has Outlook open and wants to paste directly.
+    try { await copyEmail(); console.log('[Pulse] Clipboard copy succeeded'); }
+    catch (e) { console.warn('[Pulse] Clipboard copy failed (non-fatal):', e); }
+
+    const attCount = attachments.length;
+    const attMsg = attCount === 0 ? '' : ' with ' + attCount + ' PDF attachment' + (attCount === 1 ? '' : 's');
+    showToast('\u2713 Draft downloaded' + attMsg + '. Find "' + fname + '" in your Downloads, double-click to open in Outlook.');
+  } catch (e) {
+    console.error('[Pulse] openInOutlook fatal error:', e);
+    showToast('Open in Outlook failed: ' + (e.message || 'unknown error'));
+  }
+}
+
+// ===== Copy to clipboard =====
+async function copyEmail() {
+  const previewEl = document.getElementById('preview');
+  const clone = previewEl.cloneNode(true);
+  const htmlBody = clone.innerHTML;
+  const fullHtml = '<div style="font-family:Calibri,Arial,sans-serif;color:#111827;">' + htmlBody + '</div>';
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = htmlBody;
+  const plain = tmp.innerText || tmp.textContent || '';
+
+  try {
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html':  new Blob([fullHtml], { type: 'text/html' }),
+          'text/plain': new Blob([plain],    { type: 'text/plain' })
+        })
+      ]);
+      showToast('Email copied with formatting');
+      return;
+    }
+  } catch (err) {
+    console.warn('Clipboard API failed, falling back:', err);
+  }
+
+  try {
+    const range = document.createRange();
+    range.selectNode(previewEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    showToast('Email copied to clipboard');
+  } catch (e) {
+    showToast('Copy failed \u2013 please select manually');
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) { console.log('[Toast]', msg); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  // Long messages get more time on screen
+  const ms = msg.length > 60 ? 6000 : 2500;
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ===== Download .docx =====
+function downloadDocx() {
+  console.log('[Pulse] downloadDocx clicked');
+  showToast('Generating Word document...');
+  const d = window.docx;
+  if (!d) {
+    console.error('[Pulse] docx library not loaded');
+    showToast('docx library not loaded (check internet connection)');
+    return;
+  }
+  try {
+  const { Document, Packer, Paragraph, TextRun, AlignmentType, LevelFormat } = d;
+
+  const name = val('clientName') || '[Name]';
+  const co = val('companyName') || '[Company Name]';
+  const ye = val('yeDate') || '[Y/E date]';
+  const py = val('prevYear') || 'Prior';
+
+  const children = [];
+  const p = (text, opts) => new Paragraph({ children: [new TextRun({ text: text || '', ...(opts||{}) })] });
+  const blank = () => new Paragraph({ children: [new TextRun('')] });
+  const bullet = (label, value) => new Paragraph({
+    numbering: { reference: 'bullets', level: 0 },
+    children: [
+      new TextRun({ text: label + ': ', bold: true }),
+      new TextRun(value)
+    ]
+  });
+
+  children.push(p(`Subject: ${co} || End of Year Accounts & Tax Figures for year ended ${ye}`, { bold: true }));
+  children.push(blank());
+  children.push(p(`Hi ${name},`));
+  children.push(blank());
+  children.push(p('I hope you are well.'));
+  children.push(blank());
+  children.push(p(`Please find attached the draft financial statements for ${co} for the year ended ${ye} for your review and approval.`));
+  children.push(blank());
+  if (chk('useDashboard')) {
+    children.push(p('Summary of Key Figures', { bold: true }));
+    children.push(blank());
+  }
+
+  // ----- Visual KPI dashboard (2x2 shaded table) -----
+  if (chk('useDashboard')) try {
+    const Table = d.Table, TableRow = d.TableRow, TableCell = d.TableCell;
+    const BorderStyle = d.BorderStyle, WidthType = d.WidthType, ShadingType = d.ShadingType;
+    const AlignmentType2 = d.AlignmentType;
+
+    const t  = num('curr_turnover'), tp  = num('prev_turnover');
+    const gp_ = num('curr_gp'),      gpp_= num('prev_gp');
+    const op_ = num('curr_op'),      opp_= num('prev_op');
+    const pb = num('curr_pbt'),      pbp = num('prev_pbt');
+    const np = num('curr_np'),       npp = num('prev_np');
+    const na = num('curr_na'),       nap = num('prev_na');
+    const fr = document.querySelector('input[name="framework"]:checked').value;
+    const pyLabel2 = val('prevYear') || 'prior';
+
+    const kpis = [];
+    kpis.push({ label: 'TURNOVER',          value: t,   prev: tp,   color: '0b3b5c' });
+    if (fr === 'frs102' && gp_ !== null) {
+      kpis.push({ label: 'GROSS PROFIT',    value: gp_, prev: gpp_, color: '0e7490', extra: (t && t>0) ? ((gp_/t)*100).toFixed(1) + '% margin' : null });
+    }
+    if (fr === 'frs102' && op_ !== null && kpis.length < 3) {
+      kpis.push({ label: 'OPERATING PROFIT', value: op_, prev: opp_, color: '0d9488' });
+    }
+    if (pb !== null && kpis.length < 3) kpis.push({ label: 'PROFIT BEFORE TAX', value: pb, prev: pbp, color: '1d4ed8' });
+    if (np !== null && kpis.length < 4) kpis.push({ label: 'NET PROFIT',         value: np, prev: npp, color: '15803d' });
+    if (na !== null && kpis.length < 4) kpis.push({ label: 'NET ASSETS',         value: na, prev: nap, color: '7e22ce' });
+    while (kpis.length < 4) kpis.push(null);
+    kpis.length = 4;
+
+    const pct = (c, pv) => (c === null || pv === null || pv === 0) ? null : ((c - pv) / Math.abs(pv)) * 100;
+    const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder };
+
+    function buildCard(k) {
+      // Always emit the SAME paragraph structure so every cell renders to the same height:
+      //   1) label (10pt bold)
+      //   2) value (18pt bold)
+      //   3) extra line (10pt — non-breaking space if no extra content)
+      //   4) delta line (10pt bold)
+      const isEmpty = (!k || k.value === null);
+      const labelTxt = isEmpty ? ' ' : k.label;
+      const valueTxt = isEmpty ? ' ' : ('£' + fmt(k.value));
+      const extraTxt = (isEmpty || !k.extra) ? '\u00A0' : k.extra;
+      const d2 = isEmpty ? null : pct(k.value, k.prev);
+      const arrow = d2 === null ? '' : (d2 > 0.1 ? '▲' : (d2 < -0.1 ? '▼' : '◆'));
+      const deltaTxt = isEmpty ? '\u00A0' :
+        (d2 === null ? 'No prior year data' : `${arrow} ${d2 >= 0 ? '+' : ''}${d2.toFixed(1)}% vs ${pyLabel2}`);
+
+      const fillColor = isEmpty ? 'FFFFFF' : k.color;
+      const textColor = isEmpty ? 'FFFFFF' : 'FFFFFF';
+      const lightColor = isEmpty ? 'FFFFFF' : 'E5E7EB';
+
+      const paras = [
+        new Paragraph({
+          spacing: { before: 0, after: 20 },
+          children: [new TextRun({ text: labelTxt, bold: true, size: 11, color: textColor })]
+        }),
+        new Paragraph({
+          spacing: { before: 0, after: 20 },
+          children: [new TextRun({ text: valueTxt, bold: true, size: 22, color: textColor })]
+        }),
+        new Paragraph({
+          spacing: { before: 0, after: 20 },
+          children: [new TextRun({ text: extraTxt, size: 11, color: lightColor })]
+        }),
+        new Paragraph({
+          spacing: { before: 0, after: 0 },
+          children: [new TextRun({ text: deltaTxt, size: 11, color: lightColor, bold: true })]
+        })
+      ];
+
+      return new TableCell({
+        width: { size: 4680, type: WidthType.DXA },
+        shading: { fill: fillColor, type: ShadingType.CLEAR },
+        borders: noBorders,
+        margins: { top: 100, bottom: 100, left: 140, right: 140 },
+        children: paras
+      });
+    }
+
+    const HeightRule = d.HeightRule;
+    const dashTable = new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [4680, 4680],
+      borders: noBorders,
+      rows: [
+        new TableRow({ height: { value: 1000, rule: HeightRule ? HeightRule.EXACT : 'exact' }, children: [buildCard(kpis[0]), buildCard(kpis[1])] }),
+        new TableRow({ height: { value: 1000, rule: HeightRule ? HeightRule.EXACT : 'exact' }, children: [buildCard(kpis[2]), buildCard(kpis[3])] }),
+      ]
+    });
+    children.push(dashTable);
+    children.push(blank());
+  } catch (e) {
+    console.error('Dashboard generation failed, skipping:', e);
+  }
+  
+
+  const figures = [
+    ['Turnover', num('curr_turnover'), num('prev_turnover')],
+    ['Cost of sales', num('curr_cos'), num('prev_cos')],
+    ['Gross profit', num('curr_gp'), num('prev_gp')],
+    ['Administrative expenses', num('curr_admin'), num('prev_admin')],
+    ['Staff costs', num('curr_staff'), num('prev_staff')],
+    ['Other charges', num('curr_other'), num('prev_other')],
+    ['Operating profit', num('curr_op'), num('prev_op')],
+    ['Interest payable', num('curr_int'), num('prev_int')],
+    ['Profit before taxation', num('curr_pbt'), num('prev_pbt')],
+    ['Corporation tax', num('curr_ct'), num('prev_ct')],
+    ['Net profit', num('curr_np'), num('prev_np')],
+    ['Fixed assets', num('curr_fa'), num('prev_fa')],
+    ['Net assets', num('curr_na'), num('prev_na')],
+  ];
+  // Bulleted figure list removed — figures now embedded in narrative sections
+
+
+  if (chk('useTrading') && val('tradingNarrative').trim()) {
+    children.push(p('Trading Performance', { bold: true }));
+    children.push(blank());
+    const trParas = val('tradingNarrative').split(/\n\s*\n/);
+    trParas.forEach((para, idx) => {
+      if (para.trim()) {
+        children.push(p(para.trim()));
+        if (idx < trParas.length - 1) children.push(blank());
+      }
+    });
+    children.push(blank());
+  }
+  if (chk('useBS') && val('bsNarrative').trim()) {
+    children.push(p('Balance Sheet Position', { bold: true }));
+    children.push(blank());
+    const bsParas = val('bsNarrative').split(/\n\s*\n/);
+    bsParas.forEach((para, idx) => {
+      if (para.trim()) {
+        children.push(p(para.trim()));
+        if (idx < bsParas.length - 1) children.push(blank());
+      }
+    });
+    children.push(blank());
+  }
+  if (chk('useDLA')) {
+    let dla = val('dlaNarrative').trim();
+    if (!dla) {
+      const bal = num('dlaBalance');
+      const dl = val('dlaDeadline') || '[deadline]';
+      const pl = [];
+      if (bal === null) {
+        pl.push("At the year end the director had an overdrawn loan balance with the company. The exact balance should be confirmed before sending this email.");
+      } else if (bal <= 10000) {
+        pl.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+        pl.push(`As this balance is below £10,000, there are no taxable benefit-in-kind implications under HMRC's beneficial loan rules.`);
+        pl.push(`However, please ensure this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+      } else {
+        pl.push(`At the year end there was a balance of £${fmt(bal)} owed by yourself to the company, representing an overdrawn director's loan account.`);
+        pl.push(`As this balance exceeds £10,000, a benefit-in-kind will be reportable on a form P11D, with associated Class 1A National Insurance for the company.`);
+        pl.push(`We would strongly recommend that this balance is repaid within nine months of the year end, i.e. by ${dl}, to avoid an s.455 tax charge becoming payable by the company.`);
+      }
+      pl.push("What is s.455? Section 455 is a tax charge under the Corporation Tax Act 2010 that applies where a director, or other participator, owes the company money at the end of the accounting period and the loan remains outstanding more than nine months and one day after the year end.");
+      if (bal !== null && bal > 0) {
+        const s455 = bal * 0.3375;
+        pl.push(`How is it calculated? The charge is 33.75% of the unpaid balance. Based on a year-end balance of £${fmt(bal)}, the potential s.455 charge would be approximately £${fmt(Math.round(s455))}, payable by the company alongside its Corporation Tax.`);
+      } else {
+        pl.push("How is it calculated? The charge is 33.75% of the overdrawn balance that remains unpaid nine months after the year end, and is payable by the company alongside its main Corporation Tax liability.");
+      }
+      pl.push("The good news is that the charge is refundable: once the loan has been repaid, HMRC will release the s.455 amount back to the company, although the refund is only processed nine months after the end of the accounting period in which the repayment took place.");
+      dla = pl.join('\n\n');
+    }
+    if (dla) {
+      children.push(p("Director's Loan Account", { bold: true }));
+      children.push(blank());
+      const paras = dla.split(/\n\s*\n/);
+      paras.forEach((para, idx) => {
+        if (para.trim()) {
+          children.push(p(para.trim()));
+          if (idx < paras.length - 1) children.push(blank());
+        }
+      });
+      children.push(blank());
+    }
+  }
+
+  if (chk('useDiv')) {
+    let dn = val('divNarrative').trim();
+    if (!dn) {
+      const cd = num('curr_div');
+      const pd = num('prev_div');
+      const py2 = val('prevYear') || 'prior year';
+      const pl = [];
+      if (cd === null) {
+        pl.push('Dividends were declared and paid to the shareholders during the year. The specific amount should be confirmed before sending this email.');
+      } else {
+        let line1 = `Dividends of £${fmt(cd)} were declared and paid to the shareholders during the year`;
+        if (pd !== null) line1 += ` (${py2}: £${fmt(pd)})`;
+        line1 += '.';
+        pl.push(line1);
+            pl.push('Please also note that dividends may only lawfully be paid from distributable reserves; we have confirmed that sufficient reserves were available at the date of declaration based on the figures provided.');
+      }
+      dn = pl.join('\n\n');
+    }
+    if (dn) {
+      children.push(p('Dividends', { bold: true }));
+      children.push(blank());
+      const paras = dn.split(/\n\s*\n/);
+      paras.forEach((para, idx) => {
+        if (para.trim()) {
+          children.push(p(para.trim()));
+          if (idx < paras.length - 1) children.push(blank());
+        }
+      });
+      children.push(blank());
+    }
+  }
+
+  const ct = num('curr_ct');
+  if (ct !== null && (val('ctPayDate') || val('taxableProfits'))) {
+    const rate = val('ctRate') || '19';
+    const rateNum = parseFloat(rate) || 0;
+    const ctPay = val('ctPayDate') || '[CT payment deadline]';
+    const tp_ = num('taxableProfits');
+    let line1 = `The Corporation Tax liability for the year is £${fmt(ct)}, calculated at a tax rate of ${rate}%`;
+    if (tp_ !== null) line1 += ` on taxable profits of £${fmt(tp_)}`;
+    line1 += `. This is payable to HMRC by ${ctPay}.`;
+    children.push(p('Corporation Tax', { bold: true }));
+    children.push(blank());
+    children.push(p(line1));
+    children.push(blank());
+
+    const cap = num('capAllow');
+    const gr  = num('groupRelief');
+    if (cap !== null && cap > 0) {
+      const capSaving = Math.round(cap * rateNum / 100);
+      children.push(p(`Capital allowances of £${fmt(cap)} have been claimed in the year, generating a Corporation Tax saving of approximately £${fmt(capSaving)} at a tax rate of ${rate}%.`));
+      children.push(blank());
+    }
+    if (gr !== null && gr > 0) {
+      const grSaving = Math.round(gr * rateNum / 100);
+      children.push(p(`Group relief of £${fmt(gr)} has been applied, providing a further Corporation Tax saving of approximately £${fmt(grSaving)} at a tax rate of ${rate}%.`));
+      children.push(blank());
+    }
+    if ((cap||0) > 0 && (gr||0) > 0) {
+      const totalSaving = Math.round(((cap||0) + (gr||0)) * rateNum / 100);
+      children.push(p(`Together, these reliefs have reduced the Corporation Tax liability by approximately £${fmt(totalSaving)}.`));
+      children.push(blank());
+    }
+
+    children.push(p('We will issue automatic payment reminders closer to the payment deadline.'));
+    children.push(blank());
+  }
+
+  children.push(p('Next Steps', { bold: true }));
+  children.push(blank());
+  children.push(p('Please can you let me know your availability in the next couple of week to arrange a meeting/call to discuss the figures in more detail.'));
+  children.push(blank());
+  children.push(p("If you have any questions in the meantime, don't hesitate to get in touch."));
+  children.push(blank());
+  children.push(p('Kind regards'));
+
+  const doc = new Document({
+    styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
+    numbering: {
+      config: [{
+        reference: 'bullets',
+        levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.LEFT,
+          style: { paragraph: { indent: { left: 720, hanging: 360 } } } }]
+      }]
+    },
+    sections: [{
+      properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children
+    }]
+  });
+
+  Packer.toBlob(doc).then(blob => {
+    const fname = `${co.replace(/[^\w\s-]/g,'')} - Accounts Email ${ye.replace(/[^\w\s-]/g,'')}.docx`.replace(/\s+/g, ' ').trim() || 'Accounts Email.docx';
+    try {
+      if (typeof saveAs === 'function') {
+        saveAs(blob, fname);
+      } else {
+        // Fallback if file-saver didn't load
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      showToast('Word document downloaded');
+    } catch (e) {
+      console.error('saveAs failed:', e);
+      showToast('Download failed: ' + (e.message || 'unknown error'));
+    }
+  }).catch(err => {
+    console.error('Packer.toBlob failed:', err);
+    showToast('Could not build .docx: ' + (err.message || 'unknown error'));
+  });
+  } catch (outerErr) {
+    console.error('downloadDocx fatal:', outerErr);
+    showToast('Could not build Word document: ' + (outerErr.message || 'unknown error'));
+  }
+}
+
+// ===== Save / Load =====
+function saveData() {
+  const data = {};
+  FIELD_IDS.forEach(id => {
+    if (id === 'framework') {
+      data[id] = document.querySelector('input[name="framework"]:checked').value;
+      return;
+    }
+    const el = document.getElementById(id);
+    if (!el) return;
+    data[id] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const co = val('companyName') || 'inputs';
+  saveAs(blob, `${co} - email inputs.json`);
+  showToast('Inputs saved as JSON');
+}
+
+function loadData() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const data = JSON.parse(r.result);
+        FIELD_IDS.forEach(id => {
+          if (data[id] === undefined) return;
+          if (id === 'framework') {
+            const r = document.getElementById('frw_' + data[id]);
+            if (r) { r.checked = true; onFrameworkChange(); }
+            return;
+          }
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.type === 'checkbox') el.checked = data[id];
+          else el.value = data[id];
+        });
+        render();
+        showToast('Inputs loaded');
+      } catch (err) {
+        showToast('Invalid JSON file');
+      }
+    };
+    r.readAsText(file);
+  };
+  input.click();
+}
+
+function clearFormData() {
+  // Clears every form field and resets all internal state
+  FIELD_IDS.forEach(id => {
+    if (id === 'framework') return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      // Defaults: visual dashboard + trading + balance sheet ON; everything else OFF
+      el.checked = (id === 'useDashboard' || id === 'useTrading' || id === 'useBS');
+    } else if (id === 'ctRate') {
+      el.value = '19';
+    } else {
+      el.value = '';
+    }
+  });
+
+  // Framework radios back to FRS 105 default
+  document.getElementById('frw_frs105').checked = true;
+  document.getElementById('frw_frs102').checked = false;
+  onFrameworkChange();
+
+  // Wipe all auto-generation tracking so re-uploads start fresh
+  lastDlaAutoGen = '';
+  lastDivAutoGen = '';
+  lastTradingAutoGen = '';
+  lastBsAutoGen = '';
+
+  // Hide any open extraction modal / processing indicator
+  const modal = document.getElementById('extractionModal');
+  if (modal) modal.classList.remove('show');
+  const proc = document.getElementById('processing');
+  if (proc) proc.classList.remove('show');
+}
+
+function resetForm() {
+  if (!confirm('Clear all inputs and start fresh?')) return;
+  clearFormData();
+  render();
+  showToast('Form reset – ready for a new client');
+}
+
+
+
+function onFrameworkChange() {
+  const fr = document.querySelector('input[name="framework"]:checked').value;
+  document.querySelectorAll('.row-frs102').forEach(el => el.style.display = (fr === 'frs102') ? '' : 'none');
+  document.querySelectorAll('.row-frs105').forEach(el => el.style.display = (fr === 'frs105') ? '' : 'none');
+  render();
+}
+function showRowsWithValues() {
+  // After PDF parsing populates fields, ensure any FRS 102-only row that has
+  // a value is made visible regardless of the framework selector. This covers
+  // FRS 105 accounts that happen to disclose Fixed assets, Cost of sales, etc.
+  const pairs = [
+    ['curr_cos','prev_cos'], ['curr_gp','prev_gp'], ['curr_admin','prev_admin'],
+    ['curr_op','prev_op'], ['curr_int','prev_int'], ['curr_fa','prev_fa']
+  ];
+  for (const [a, b] of pairs) {
+    const av = document.getElementById(a) && document.getElementById(a).value;
+    const bv = document.getElementById(b) && document.getElementById(b).value;
+    if (av || bv) {
+      const row = document.getElementById(a) && document.getElementById(a).closest('tr');
+      if (row) row.style.display = '';
+    }
+  }
+}
+
+
+// ===== PDF Upload / Auto-population =====
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+function toTitleCase(s) {
+  return s.toLowerCase().replace(/\b(\w)/g, c => c.toUpperCase())
+    .replace(/\bLimited\b/i, 'Limited')
+    .replace(/\bLtd\b/i, 'Ltd')
+    .replace(/\bPlc\b/i, 'PLC')
+    .replace(/\bLlp\b/i, 'LLP')
+    .replace(/\bAnd\b/g, 'and')
+    .replace(/\bOf\b/g, 'of')
+    .replace(/\bThe\b/g, 'the');
+}
+
+function parseAmount(s) {
+  if (!s) return null;
+  s = String(s).trim().replace(/£/g, '').replace(/,/g, '').replace(/[()]/g, '');
+  if (s === '-' || s === '' || s === '–') return 0;
+  const v = parseFloat(s);
+  if (isNaN(v)) return null;
+  return Math.abs(v);
+}
+
+async function uploadPdf() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/pdf';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Always start each upload from a clean slate so old data can't bleed through
+    clearFormData();
+    showProcessing(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // PDF.js detaches the ArrayBuffer when it processes the file. Clone
+      // a fresh copy first so we still have usable bytes for the .eml attachment.
+      _uploadedAccountsPdf = { buffer: buf.slice(0), fileName: file.name || 'Accounts.pdf' };
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        // Sort items by y then x to reconstruct reading order
+        const items = tc.items.slice().sort((a,b) => {
+          const ay = a.transform[5], by = b.transform[5];
+          if (Math.abs(ay - by) > 2) return by - ay;
+          return a.transform[4] - b.transform[4];
+        });
+        let lastY = null;
+        let line = '';
+        const lines = [];
+        for (const it of items) {
+          const y = it.transform[5];
+          if (lastY !== null && Math.abs(y - lastY) > 3.5) {
+            if (line.trim()) lines.push(line.trim());
+            line = '';
+          }
+          line += it.str + ' ';
+          lastY = y;
+        }
+        if (line.trim()) lines.push(line.trim());
+        fullText += lines.join('\n') + '\n';
+      }
+      extractAndFill(fullText);
+    } catch (err) {
+      console.error(err);
+      showToast('Could not read PDF: ' + err.message);
+    } finally {
+      showProcessing(false);
+    }
+  };
+  input.click();
+}
+
+function showProcessing(on) {
+  let p = document.getElementById('processing');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'processing';
+    p.className = 'processing';
+    p.style.position = 'fixed';
+    p.style.top = '70px';
+    p.style.right = '24px';
+    p.style.zIndex = '1001';
+    p.innerHTML = '<div class="spinner"></div><span>Reading PDF…</span>';
+    document.body.appendChild(p);
+  }
+  p.classList.toggle('show', on);
+}
+
+// Track which lines have been "consumed" by a label match so a later
+// match in the figureMap can't double-pick the same line.
+let _consumedLines = null;
+
+function findTwoNumbers(text, labelRegex, excludeRegex) {
+  // Look for a label, then take the next two numeric tokens. Robust against:
+  //  - labels that wrap across two PDF lines (e.g. "Creditors: ... Within /
+  //    One Year")
+  //  - year-header rows in the values area (e.g. "2025 2024")
+  //  - subtotal lines further than 3 lines below the label
+  const numPattern = /\(?[-\d][\d,]*(?:\.\d+)?\)?|–|-/g;
+  // A line that is "just years": one or two 4-digit numbers in 1990-2099 range,
+  // with no commas / parentheses / decimals. These are column headers, not data.
+  const yearHeaderPattern = /^\s*(19|20)\d{2}(\s+(19|20)\d{2})?\s*£?\s*£?\s*$/;
+  const lines = text.split('\n');
+  if (_consumedLines === null) _consumedLines = new Set();
+
+  // Helper: is a string a recognised year-header line?
+  function isYearHeader(s) { return yearHeaderPattern.test(s.trim()); }
+
+  for (let i = 0; i < lines.length; i++) {
+    if (_consumedLines.has(i)) continue;
+    const ln = lines[i];
+
+    // 1) Try the line itself
+    let labelMatches = labelRegex.test(ln);
+    let spanned = false;
+    let matchLn = ln;
+
+    // 2) If not, try concatenating with the next line (handles wrapped labels)
+    if (!labelMatches && i + 1 < lines.length) {
+      const joined = ln.trim() + ' ' + lines[i + 1].trim();
+      if (labelRegex.test(joined)) {
+        labelMatches = true;
+        spanned = true;
+        matchLn = joined;
+      }
+    }
+    if (!labelMatches) continue;
+    if (excludeRegex && excludeRegex.test(matchLn)) continue;
+
+    // First, look for two+ numbers on the matched line(s).
+    const inlineNums = matchLn.match(numPattern);
+    if (inlineNums && inlineNums.length >= 2) {
+      _consumedLines.add(i);
+      if (spanned) _consumedLines.add(i + 1);
+      return [parseAmount(inlineNums[inlineNums.length - 2]), parseAmount(inlineNums[inlineNums.length - 1])];
+    }
+
+    // Otherwise scan further lines for a values row. Extended window to 8
+    // lines to catch subtotal rows that follow several detail rows.
+    const scanStart = spanned ? i + 2 : i + 1;
+    for (let j = scanStart; j < Math.min(scanStart + 8, lines.length); j++) {
+      if (_consumedLines.has(j)) continue;
+      const nextLn = lines[j].trim();
+      if (!nextLn) continue;
+      if (isYearHeader(nextLn)) continue;   // skip column-header rows
+      const nextNums = nextLn.match(numPattern);
+      if (!nextNums || nextNums.length < 2) continue;
+      // Require the line to be predominantly numeric.
+      const nonNum = nextLn.replace(numPattern, '').replace(/[\s£,()\-–]/g, '').length;
+      if (nonNum > 4) continue;
+      _consumedLines.add(i);
+      if (spanned) _consumedLines.add(i + 1);
+      _consumedLines.add(j);
+      return [parseAmount(nextNums[nextNums.length - 2]), parseAmount(nextNums[nextNums.length - 1])];
+    }
+
+    // Last resort: single number on the same line
+    if (inlineNums && inlineNums.length === 1) {
+      _consumedLines.add(i);
+      if (spanned) _consumedLines.add(i + 1);
+      return [parseAmount(inlineNums[0]), null];
+    }
+  }
+  return [null, null];
+}
+
+
+// =====================================================
+// Tax Computation Upload (populates Corporation Tax fields)
+// =====================================================
+async function uploadTaxComp() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/pdf';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    showProcessing(true);
+    try {
+      const buf = await file.arrayBuffer();
+      // PDF.js detaches the ArrayBuffer when it processes the file. Clone
+      // a fresh copy first so we still have usable bytes for the .eml attachment.
+      _uploadedTaxCompPdf = { buffer: buf.slice(0), fileName: file.name || 'Tax Computation.pdf' };
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        const items = tc.items.slice().sort((a,b) => {
+          const ay = a.transform[5], by = b.transform[5];
+          if (Math.abs(ay - by) > 3.5) return by - ay;
+          return a.transform[4] - b.transform[4];
+        });
+        let lastY = null, line = '';
+        const lines = [];
+        for (const it of items) {
+          const y = it.transform[5];
+          if (lastY !== null && Math.abs(y - lastY) > 3.5) {
+            if (line.trim()) lines.push(line.trim());
+            line = '';
+          }
+          line += it.str + ' ';
+          lastY = y;
+        }
+        if (line.trim()) lines.push(line.trim());
+        fullText += lines.join('\n') + '\n';
+      }
+      parseTaxComputation(fullText);
+    } catch (err) {
+      console.error(err);
+      showToast('Could not read PDF: ' + err.message);
+    } finally {
+      showProcessing(false);
+    }
+  };
+  input.click();
+}
+
+function parseTaxComputation(text) {
+  const found = [];
+  const missing = [];
+
+  // Helper: collect ALL numbers found near a label, then choose the most
+  // appropriate one based on the option flags.
+  function findFinanceNumber(labelRegex, opts) {
+    opts = opts || {};
+    const minValue = opts.minValue !== undefined ? opts.minValue : 100;
+    const numPattern = /\(?[-\d][\d,]*(?:\.\d+)?\)?/g;
+    const lines = text.split('\n');
+    const candidates = [];
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      if (!labelRegex.test(ln)) continue;
+      if (opts.excludeRegex && opts.excludeRegex.test(ln)) continue;
+      let value = null;
+      const nums = ln.match(numPattern);
+      if (nums && nums.length >= 1) {
+        // Pick the LAST number on the line (final column in accounts tables)
+        value = parseAmount(nums[nums.length - 1]);
+      } else {
+        // Label only on this line — scan next 3 lines for a numeric line
+        for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+          const nextLn = lines[j].trim();
+          const nextNums = nextLn.match(numPattern);
+          if (!nextNums || nextNums.length < 1) continue;
+          const nonNum = nextLn.replace(numPattern, '').replace(/[\s£,()\-–%]/g, '').length;
+          if (nonNum > 4) continue;
+          value = parseAmount(nextNums[nextNums.length - 1]);
+          break;
+        }
+      }
+      if (value !== null && value >= minValue) {
+        candidates.push({ value, lineIdx: i });
+      }
+    }
+    if (candidates.length === 0) return null;
+    if (opts.preferLast)     return candidates[candidates.length - 1].value;
+    if (opts.preferLargest)  return candidates.reduce((a, b) => a.value > b.value ? a : b).value;
+    return candidates[0].value;
+  }
+
+  // -- Taxable Profits --
+  // Order of preference:
+  //   1) "Profits chargeable to corporation tax after deductions and reliefs"
+  //   2) "Profits chargeable to corporation tax" (preferLargest avoids page-number 1)
+  //   3) "Taxable total profits"
+  //   4) "Taxable profits"
+  let tp = findFinanceNumber(/Profits\s+chargeable\s+to\s+corporation\s+tax\s+after\s+deductions\s+and\s+reliefs/i, { minValue: 50, preferLargest: true });
+  if (tp === null) tp = findFinanceNumber(/Profits\s+chargeable\s+to\s+corporation\s+tax/i, { minValue: 50, preferLargest: true });
+  if (tp === null) tp = findFinanceNumber(/Taxable\s+total\s+profits/i, { minValue: 50, preferLargest: true });
+  if (tp === null) tp = findFinanceNumber(/\bTaxable\s+profits?\b/i, { minValue: 50, preferLargest: true });
+  if (tp !== null) {
+    document.getElementById('taxableProfits').value = tp;
+    found.push('Taxable Profits (£' + tp.toLocaleString('en-GB') + ')');
+  } else {
+    missing.push('Taxable Profits (enter manually from CT comp)');
+  }
+
+  // -- Capital Allowances --
+  // Prefer "Net capital allowances" (final claimed amount) over "Capital Allowances Pool"
+  let ca = findFinanceNumber(/Net\s+capital\s+allowances/i, { minValue: 50, preferLargest: true });
+  if (ca === null) ca = findFinanceNumber(/Total\s+capital\s+allowances(?:\s+claimed)?(?:\s+in\s+(?:the\s+)?year)?/i, { minValue: 50, preferLargest: true });
+  if (ca === null) ca = findFinanceNumber(/Capital\s+allowances\s+claimed/i, { minValue: 50, preferLargest: true });
+  // Last-resort fallback excludes "Pool", "brought forward" etc to avoid contents-page matches
+  if (ca === null) ca = findFinanceNumber(/\bCapital\s+allowances\b/i, {
+    minValue: 50,
+    preferLargest: true,
+    excludeRegex: /pool|brought\s+forward|carried\s+forward|c\/f|b\/f|\d—\d/i
+  });
+  if (ca !== null && ca > 0) {
+    document.getElementById('capAllow').value = ca;
+    found.push('Capital Allowances (£' + ca.toLocaleString('en-GB') + ')');
+  } else {
+    missing.push('Capital Allowances (enter manually if applicable)');
+  }
+
+  // -- Group Relief --
+  let gr = findFinanceNumber(/Group\s+relief(?:\s+(?:claimed|surrendered))?/i, { minValue: 1, preferLargest: true });
+  if (gr !== null && gr > 0) {
+    document.getElementById('groupRelief').value = gr;
+    found.push('Group Relief (£' + gr.toLocaleString('en-GB') + ')');
+  } else {
+    missing.push('Group Relief (enter manually if applicable)');
+  }
+
+  // -- CT Rate --
+  // Try several patterns. The CT comp may show the rate in a column or
+  // inline ("Corporation tax @ 19%").
+  let rate = null;
+  const ratePatterns = [
+    /Corporation\s+tax\s*(?:@|at\s+(?:a\s+)?(?:tax\s+)?rate\s+of)\s*(\d{1,2}(?:\.\d+)?)\s*%/i,
+    /main\s+rate\s+of\s+(\d{1,2}(?:\.\d+)?)\s*%/i,
+    /small\s+profits\s+rate\s+of\s+(\d{1,2}(?:\.\d+)?)\s*%/i,
+    /Rate\s+of\s+Tax[\s\S]{0,100}?(\d{1,2}(?:\.\d+)?)\s*%/i,
+    /Corporation\s+tax[^\n]*?(\d{1,2}(?:\.\d+)?)\s*%/i
+  ];
+  for (const p of ratePatterns) {
+    const r = text.match(p);
+    if (r) { rate = r[1]; break; }
+  }
+  // If still no rate, look for an isolated rate in a Financial-year table row
+  if (!rate) {
+    const fyRow = text.match(/(?:Financial\s+year[\s\S]{0,300})?\d{4}\s+[\d,]+(?:\.\d+)?\s+(\d{1,2}(?:\.\d+)?)\s+[\d,]+/);
+    if (fyRow) rate = fyRow[1];
+  }
+  if (rate) {
+    document.getElementById('ctRate').value = rate;
+    found.push('CT Rate (' + rate + '%)');
+  } else {
+    missing.push('CT Rate (leave at default 19% if unsure)');
+  }
+
+  // -- CT Liability --
+  let ctLiab = findFinanceNumber(/(?:Self\s+assessment\s+of\s+tax\s+payable|Net\s+corporation\s+tax\s+chargeable|Corporation\s+tax\s+chargeable|Corporation\s+tax\s+outstanding|Corporation\s+tax\s+payable|Corporation\s+tax\s+liability|Total\s+corporation\s+tax)/i, { minValue: 1, preferLargest: true });
+  if (ctLiab !== null) {
+    const existing = document.getElementById('curr_ct').value;
+    if (!existing) {
+      document.getElementById('curr_ct').value = ctLiab;
+      found.push('Corporation Tax liability (£' + ctLiab.toLocaleString('en-GB') + ')');
+    }
+  }
+
+  // -- CT Payment Deadline --
+  // 1) Prefer the explicit "Payment due date: ..." entry
+  const directPay = text.match(/Payment\s+due\s+date\s*[:\-]?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})/i);
+  if (directPay) {
+    const cleaned = directPay[1].replace(/(st|nd|rd|th)/i, '').trim();
+    document.getElementById('ctPayDate').value = cleaned;
+    found.push('CT Payment Deadline (' + cleaned + ')');
+  } else {
+    // 2) Otherwise derive from accounting period end date
+    const yeMatch = text.match(/(?:Accounting\s+period\s+(?:ending|ended)|Period\s+ending|Year\s+ending|Year\s+ended|to)\s+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})/i);
+    if (yeMatch) {
+      try {
+        const dateStr = yeMatch[1].replace(/(st|nd|rd|th)/i, '').trim();
+        const m2 = dateStr.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+        if (m2) {
+          const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+          const monIdx = months.indexOf(m2[2].toLowerCase());
+          if (monIdx >= 0) {
+            const ye = new Date(parseInt(m2[3]), monIdx, parseInt(m2[1]));
+            const chDate = new Date(ye); chDate.setMonth(chDate.getMonth() + 9);
+            const ctPay = new Date(chDate); ctPay.setDate(ctPay.getDate() + 1);
+            const fmtD = d => d.getDate() + ' ' + months[d.getMonth()].charAt(0).toUpperCase() + months[d.getMonth()].slice(1) + ' ' + d.getFullYear();
+            const existingPay = document.getElementById('ctPayDate').value;
+            if (!existingPay) {
+              document.getElementById('ctPayDate').value = fmtD(ctPay);
+              found.push('CT Payment Deadline (' + fmtD(ctPay) + ')');
+            }
+          }
+        }
+      } catch (e) { console.warn(e); }
+    }
+  }
+
+  // Re-render preview to pick up populated values + trigger narrative regen
+  if (typeof onFigureInput === 'function') onFigureInput(); else render();
+
+  showTaxCompSummary(found, missing);
+}
+
+function showTaxCompSummary(found, missing) {
+  const body = document.getElementById('extractionBody');
+  let html = '<p style="font-size:13px;color:#4b5563;margin:0 0 12px 0;">Tax computation parsed. Review the populated Corporation Tax fields and adjust manually if needed — every value remains editable.</p>';
+  if (found.length) {
+    html += '<div class="result-section found"><h3>✓ Auto-populated (' + found.length + ')</h3><ul>';
+    for (const f of found) html += '<li>' + f + '</li>';
+    html += '</ul></div>';
+  }
+  if (missing.length) {
+    html += '<div class="result-section missing"><h3>⚠ Needs Manual Entry (' + missing.length + ')</h3><ul>';
+    for (const m of missing) html += '<li>' + m + '</li>';
+    html += '</ul></div>';
+  }
+  document.getElementById('extractionBody').innerHTML = html;
+  document.getElementById('extractionModal').classList.add('show');
+}
+
+function extractAndFill(text) {
+  _consumedLines = new Set();  // reset for this extraction
+  const found = [];
+  const missing = [];
+
+  // Pre-process: balance-sheet creditor labels often wrap across two lines
+  //   e.g.  "Creditors: Amounts Falling Due Within"
+  //         "One Year                7  (3,045,696) (2,944,890)"
+  // Join such pairs back together so the regex sees the full label + values.
+  const _wrapStarts = /(?:Within|After\s+More\s+Than|After\s+more\s+than)\s*$|^Creditors:?\s+(?:Amounts\s+)?[Ff]alling\s+[Dd]ue\s+(?:[Ww]ithin|[Aa]fter\s+[Mm]ore\s+[Tt]han)\s*$/;
+  const _origLines = text.split('\n');
+  const _joined = [];
+  for (let _i = 0; _i < _origLines.length; _i++) {
+    if (_i + 1 < _origLines.length && _wrapStarts.test(_origLines[_i].trim())) {
+      _joined.push(_origLines[_i].trim() + ' ' + _origLines[_i + 1].trim());
+      _i++;
+    } else {
+      _joined.push(_origLines[_i]);
+    }
+  }
+  text = _joined.join('\n');
+
+
+  // -- Detect accounts framework --
+  let framework = 'frs105'; // default
+  if (/micro[- ]entity\s+provisions|FRS\s*105/i.test(text)) {
+    framework = 'frs105';
+    found.push('Framework: FRS 105 (Micro-entity)');
+  } else if (/FRS\s*102|Section\s+1A|small\s+companies\s+regime/i.test(text)) {
+    framework = 'frs102';
+    found.push('Framework: FRS 102 (Small Company)');
+  } else {
+    // Heuristic: presence of "Gross profit" or "Administrative expenses" indicates FRS 102
+    if (/Gross\s+profit|Administrative\s+expenses|Cost\s+of\s+sales|Operating\s+profit/i.test(text)) {
+      framework = 'frs102';
+      found.push('Framework: FRS 102 (inferred from layout)');
+    } else {
+      found.push('Framework: FRS 105 (default)');
+    }
+  }
+  document.getElementById('frw_' + framework).checked = true;
+  onFrameworkChange();
+
+  // -- Company name --
+  let coMatch = text.match(/([A-Z][A-Z0-9 &'.,()\-]{2,}?(?: LIMITED| LTD| PLC| LLP))/);
+  if (coMatch) {
+    document.getElementById('companyName').value = toTitleCase(coMatch[1].trim());
+    found.push('Company Name');
+  } else {
+    missing.push('Company Name');
+  }
+
+  // -- Y/E date --
+  const yeMatch = text.match(/(?:FOR THE YEAR ENDED|YEAR ENDED|As At|AS AT)\s+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})/i);
+  if (yeMatch) {
+    let dateStr = yeMatch[1].replace(/(st|nd|rd|th)/i, '').trim();
+    // Title case the month
+    dateStr = dateStr.replace(/\b([a-z])([a-z]+)/gi, (m,a,b) => a.toUpperCase()+b.toLowerCase());
+    document.getElementById('yeDate').value = dateStr;
+    const yr = parseInt(dateStr.match(/\d{4}/)[0]);
+    document.getElementById('currYear').value = yr;
+    document.getElementById('prevYear').value = yr - 1;
+    found.push('Y/E Date');
+  } else {
+    missing.push('Y/E Date');
+  }
+
+  // -- Financial figures --
+  // Each entry: [label, labelRegex, currentFieldId, priorFieldId, excludeRegex?]
+  // The excludeRegex is checked against the same line — useful to skip lines that
+  // would otherwise match (e.g. "PROFIT BEFORE TAXATION" matches /Taxation/).
+  const _BEFORE = /\bBefore\b/i;
+  const figureMap = [
+    ['Turnover',              /\b(?:TURNOVER|Revenue|Sales)\b/i,                                 'curr_turnover', 'prev_turnover'],
+    ['Cost of sales',         /\bCost\s+of\s+sales\b/i,                                        'curr_cos',      'prev_cos'],
+    ['Gross profit',          /\bGross\s+profit(?:\/?\(loss\))?\b/i,                          'curr_gp',       'prev_gp'],
+    ['Administrative expenses',/\bAdministrative\s+expenses\b/i,                                'curr_admin',    'prev_admin'],
+    ['Staff costs',           /\bSTAFF\s+COSTS\b|^\s*Staff costs\b/i,                         'curr_staff',    'prev_staff'],
+    ['Other charges',         /\bOTHER\s+CHARGES\b|^\s*Other charges\b/i,                     'curr_other',    'prev_other'],
+    ['Operating profit',      /\bOperating\s+profit(?:\/?\(loss\))?\b/i,                     'curr_op',       'prev_op',  _BEFORE],
+    ['Interest payable',      /\bInterest\s+payable(?:\s+and\s+similar\s+(?:charges|expenses))?\b/i, 'curr_int', 'prev_int'],
+    ['Profit before taxation',/\bPROFIT\s+(?:ON\s+ORDINARY\s+ACTIVITIES\s+)?BEFORE\s+TAX/i, 'curr_pbt',      'prev_pbt'],
+    ['Corporation tax',       /\b(?:Corporation\s+tax|Tax\s+on\s+profit|Taxation)\b|^\s*Tax\s/i, 'curr_ct',   'prev_ct',   _BEFORE],
+    ['Net profit',            /\bNET\s+PROFIT\b|\b(?:Retained\s+)?(?:Profit|Loss)(?:\s*\/?\s*\(?\s*(?:loss|profit)\s*\)?)?\s+(?:on\s+ordinary\s+activities\s+)?after\s+tax\w*|\b(?:Retained\s+)?(?:Profit|Loss)(?:\s*\/?\s*\(?\s*(?:loss|profit)\s*\)?)?\s+(?:and\s+loss\s+|attributable\s+to[^\n]*?\s+)?for\s+the\s+(?:financial\s+)?(?:year|period)\b|\bTotal\s+comprehensive\s+income\s+for\s+the\s+(?:financial\s+)?(?:year|period)\b|\bResult\s+for\s+the\s+(?:financial\s+)?(?:year|period)\b/i, 'curr_np', 'prev_np', _BEFORE],
+    ['Fixed assets',          /\bFIXED\s+ASSETS\b|\bNon-current\s+assets\b/i,                'curr_fa',       'prev_fa',  /loss|disposal|depreciation|impairment|gain|amortisation|charge/i],
+    ['Current assets',        /\bCURRENT\s+ASSETS\b|\bTotal\s+current\s+assets\b/i,            'curr_ca',       'prev_ca',  /net\s+current|less\s+current/i],
+    ['Current liabilities',   /Creditors:?\s+(?:Amounts\s+)?[Ff]alling\s+[Dd]ue\s+[Ww]ithin\b/i, 'curr_cl', 'prev_cl'],
+    ['Long-term liabilities', /Creditors:?\s+(?:Amounts\s+)?[Ff]alling\s+[Dd]ue\s+[Aa]fter\b/i, 'curr_ltl', 'prev_ltl'],
+    ['Net assets',            /\bNET\s+ASSETS\b|\bTotal\s+equity\b/i,                        'curr_na',       'prev_na'],
+  ];
+  for (const entry of figureMap) {
+    const [label, rx, cId, pId, exclude] = entry;
+    const [c, p] = findTwoNumbers(text, rx, exclude);
+    if (c !== null) {
+      document.getElementById(cId).value = c;
+      if (p !== null) document.getElementById(pId).value = p;
+      found.push(label);
+    } else {
+      missing.push(label);
+    }
+  }
+
+  // -- Director's loan --
+  // Look for a directors loan table - line containing a person's name with " 562 " or similar pattern
+  const dlaSection = text.match(/Directors?\s+Advances[\s\S]{0,500}?(?=\n\s*\d+\.\s|$)/i);
+  let dlaFound = false;
+  if (dlaSection) {
+    // Find last number on a line after "Mr/Mrs/Miss/Ms <Name>"
+    const dlaLine = dlaSection[0].match(/(?:Mr|Mrs|Miss|Ms|Dr)\s+[A-Z][a-zA-Z'\-]+(?:\s+[A-Z][a-zA-Z'\-]+)*[\s\S]*?(\(?\d[\d,]*\)?)\s*$/m);
+    if (dlaLine) {
+      const bal = parseAmount(dlaLine[1]);
+      if (bal && bal > 0) {
+        document.getElementById('useDLA').checked = true;
+        document.getElementById('dlaBalance').value = bal;
+        found.push("Director's Loan (£" + bal.toLocaleString('en-GB') + ')');
+        dlaFound = true;
+      }
+    }
+  }
+  if (!dlaFound) {
+    // Not flagged as missing if it doesn't exist in accounts - just note as info
+    missing.push("Director's Loan (none detected — toggle on manually if needed)");
+  }
+
+  // -- Dividends --
+  // Often in trading P&L or notes - look for "Dividends" line
+  const [divC, divP] = findTwoNumbers(text, /\bDividends?\b(?:\s+paid)?/i);
+  if (divC !== null && divC > 0) {
+    document.getElementById('useDiv').checked = true;
+    document.getElementById('curr_div').value = divC;
+    if (divP !== null) document.getElementById('prev_div').value = divP;
+    found.push('Dividends');
+  } else {
+    missing.push('Dividends (none detected — toggle on manually if needed)');
+  }
+
+  // -- Calculate deadlines from Y/E date --
+  if (yeMatch) {
+    try {
+      const m = yeMatch[1].match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+      if (m) {
+        const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+        const monIdx = months.indexOf(m[2].toLowerCase());
+        if (monIdx >= 0) {
+          const ye = new Date(parseInt(m[3]), monIdx, parseInt(m[1]));
+          // CT payment deadline: 9 months + 1 day after year end
+          const chDate = new Date(ye); chDate.setMonth(chDate.getMonth() + 9);
+          const ctPay = new Date(chDate); ctPay.setDate(ctPay.getDate() + 1);
+          const fmtD = d => d.getDate() + ' ' + months[d.getMonth()].charAt(0).toUpperCase() + months[d.getMonth()].slice(1) + ' ' + d.getFullYear();
+          document.getElementById('ctPayDate').value = fmtD(ctPay);
+          document.getElementById('dlaDeadline').value = fmtD(chDate);
+          found.push('CT payment deadline (auto-calculated)');
+        }
+      }
+    } catch (e) { console.warn(e); }
+  }
+
+  // Render and show summary
+  render();
+  showExtractionSummary(found, missing);
+}
+
+function showExtractionSummary(found, missing) {
+  const body = document.getElementById('extractionBody');
+  let html = '';
+  if (found.length) {
+    html += '<div class="result-section found"><h3>✓ Auto-populated (' + found.length + ')</h3><ul>';
+    for (const f of found) html += '<li>' + f + '</li>';
+    html += '</ul></div>';
+  }
+  if (missing.length) {
+    html += '<div class="result-section missing"><h3>⚠ Needs Manual Entry (' + missing.length + ')</h3><ul>';
+    for (const m of missing) html += '<li>' + m + '</li>';
+    html += '</ul></div>';
+  }
+  html += '<p style="font-size:12px;color:#6b7280;margin:8px 0 0 0;">Please review all auto-populated values against the source document before sending the email.</p>';
+  body.innerHTML = html;
+  document.getElementById('extractionModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('extractionModal').classList.remove('show');
+  // Auto-generate narratives if relevant data was found
+  if (document.getElementById('curr_turnover').value) {
+    autoTradingNarrative();
+    autoBSNarrative();
+  }
+  if (document.getElementById('useDLA').checked && !val('dlaNarrative').trim()) autoDLANarrative();
+  if (document.getElementById('useDiv').checked && !val('divNarrative').trim()) autoDivNarrative();
+}
+
+
+// Initial render
+rebuildSectorDropdown();
+render();
+</script>
+
+</body>
+</html>
